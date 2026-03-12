@@ -1,0 +1,36 @@
+-- Feature Request Board Database Schema
+-- For Neon PostgreSQL on Vercel
+
+-- Create feature_requests table
+CREATE TABLE IF NOT EXISTS feature_requests (
+  id VARCHAR(50) PRIMARY KEY,
+  merchant VARCHAR(255) NOT NULL,
+  mrr INTEGER DEFAULT 0,
+  arr INTEGER DEFAULT 0,
+  type VARCHAR(50) NOT NULL CHECK (type IN ('feature', 'integration')),
+  category VARCHAR(100) NOT NULL,
+  request_group VARCHAR(255) NOT NULL,
+  request TEXT NOT NULL,
+  context TEXT,
+  submitted_by VARCHAR(255),
+  date DATE NOT NULL,
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'sent_to_slack', 'asana_created')),
+  asana_id VARCHAR(100),
+  slack_ts VARCHAR(50),
+  slack_user VARCHAR(50),
+  channel VARCHAR(50) DEFAULT 'product' CHECK (channel IN ('product', 'ai')),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index on channel for faster queries
+CREATE INDEX IF NOT EXISTS idx_channel ON feature_requests(channel);
+
+-- Create index on status for filtering
+CREATE INDEX IF NOT EXISTS idx_status ON feature_requests(status);
+
+-- Create index on date for sorting
+CREATE INDEX IF NOT EXISTS idx_date ON feature_requests(date DESC);
+
+-- Create index on request_group for grouping
+CREATE INDEX IF NOT EXISTS idx_request_group ON feature_requests(request_group);
