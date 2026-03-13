@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { REQUESTS_DATA } from "./requestsData";
 import { AI_FEEDBACK_DATA } from "./aiFeedbackData";
 
@@ -284,7 +284,7 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
             <div style={{ width: 80, textAlign: "right", flexShrink: 0 }}>MRR</div>
             <div style={{ width: 90, textAlign: "right", flexShrink: 0 }}>ARR</div>
             <div style={{ width: 100, textAlign: "center", flexShrink: 0 }}>Status</div>
-            <div style={{ width: 110, flexShrink: 0 }}>Actions</div>
+            <div style={{ width: 150, flexShrink: 0 }}>Actions</div>
           </div>
 
           {/* Groups */}
@@ -307,8 +307,8 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
 
                 return (
                   <div key={group.key} className="group-row">
-                    <div className="group-header" onClick={() => hasMultiple && toggleGroup(group.key)}>
-                      <span className={`chevron ${isOpen ? "open" : ""}`}>{hasMultiple ? "▶" : "·"}</span>
+                    <div className="group-header" onClick={() => toggleGroup(group.key)} style={{ cursor: "pointer" }}>
+                      <span className={`chevron ${isOpen ? "open" : ""}`}>▶</span>
 
                       <div style={{ flex: 2, minWidth: 0 }}>
                         <div style={{ marginBottom: 3, display: "flex", alignItems: "center", gap: 8 }}>
@@ -350,7 +350,7 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
                         <span className="badge" style={{ background: sc.bg, color: sc.color }}>{sc.label}</span>
                       </div>
 
-                      <div style={{ display: "flex", gap: 6, flexShrink: 0, width: 110 }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: "flex", gap: 6, flexShrink: 0, width: 150 }} onClick={e => e.stopPropagation()}>
                         {groupStatus(group.rows) === "pending" && (
                           <button className="action-btn" onClick={() => handleSendToSlack(group)} style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30" }}>
                             → Slack
@@ -385,7 +385,7 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
                           <div style={{ width: 100, display: "flex", justifyContent: "center", flexShrink: 0 }}>
                             <span className="badge" style={{ background: msc.bg, color: msc.color, fontSize: 9 }}>{msc.label}</span>
                           </div>
-                          <div style={{ width: 110, flexShrink: 0 }}>
+                          <div style={{ width: 150, flexShrink: 0 }}>
                             {r.asanaId && <span style={{ fontSize: 10, color: "#4B5563" }}>{r.asanaId}</span>}
                           </div>
                         </div>
@@ -529,11 +529,37 @@ export default function App() {
   const [aiData, setAiData]           = useState(AI_FEEDBACK_DATA);
   const [toastMsg, setToastMsg]       = useState(null);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [aiDataLoading, setAiDataLoading] = useState(false);
+  const [aiDataError, setAiDataError] = useState(null);
 
   const showToast = (msg) => {
     setToastMsg({ msg });
     setTimeout(() => setToastMsg(null), 3500);
   };
+
+  // Fetch AI feedback data from database on mount
+  useEffect(() => {
+    const fetchAiData = async () => {
+      setAiDataLoading(true);
+      setAiDataError(null);
+      try {
+        const response = await fetch('/api/requests/ai');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+        setAiData(data);
+      } catch (error) {
+        console.error('Error fetching AI feedback data:', error);
+        setAiDataError(error.message);
+        showToast(`Failed to load AI feedback: ${error.message}`);
+      } finally {
+        setAiDataLoading(false);
+      }
+    };
+
+    fetchAiData();
+  }, []);
 
   const handleSync = () => {
     setSyncLoading(true);
@@ -648,13 +674,32 @@ export default function App() {
               </div>
             </div>
 
-            <RequestsPanel
-              data={aiData}
-              setData={setAiData}
-              showToast={showToast}
-              slackChannel="#ai-feedback"
-              accentColor="#7C6AF7"
-            />
+            {/* Loading state */}
+            {aiDataLoading && (
+              <div style={{ padding: 40, textAlign: "center" }}>
+                <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8 }}>Loading AI feedback data from database...</div>
+                <div style={{ fontSize: 10, color: "#4B5563" }}>Please wait</div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {aiDataError && !aiDataLoading && (
+              <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: 16, marginTop: 16 }}>
+                <div style={{ fontSize: 12, color: "#F87171", fontWeight: 500, marginBottom: 4 }}>Error loading data</div>
+                <div style={{ fontSize: 10, color: "#9CA3AF" }}>{aiDataError}</div>
+              </div>
+            )}
+
+            {/* Data panel */}
+            {!aiDataLoading && !aiDataError && (
+              <RequestsPanel
+                data={aiData}
+                setData={setAiData}
+                showToast={showToast}
+                slackChannel="#ai-feedback"
+                accentColor="#7C6AF7"
+              />
+            )}
           </div>
         )}
 

@@ -29,6 +29,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid channel. Must be "product" or "ai"' });
     }
 
+    // Map URL channel to database channel
+    const channelMap = {
+      'product': '#product',
+      'ai': '#ai-feedback'
+    };
+    const dbChannel = channelMap[channel];
+
     // Initialize Neon client
     const sql = neon(process.env.DATABASE_URL);
 
@@ -52,7 +59,7 @@ export default async function handler(req, res) {
         slack_user AS "slackUser",
         channel
       FROM feature_requests
-      WHERE channel = ${channel}
+      WHERE channel = ${dbChannel}
       ORDER BY date DESC
     `;
 
