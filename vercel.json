@@ -1,4 +1,10 @@
 {
   "buildCommand": "cd feature-request-board && npm install && npm run build",
-  "outputDirectory": "feature-request-board/dist"
+  "outputDirectory": "feature-request-board/dist",
+  "rewrites": [
+    {
+      "source": "/((?!api).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

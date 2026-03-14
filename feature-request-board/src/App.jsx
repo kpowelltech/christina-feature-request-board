@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { REQUESTS_DATA } from "./requestsData";
 import { AI_FEEDBACK_DATA } from "./aiFeedbackData";
+import { useAuth } from "./contexts/AuthContext";
 
 // ─── Shared config ────────────────────────────────────────────────────────────
 const statusConfig = {
@@ -524,6 +525,7 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const { user, signOut } = useAuth();
   const [activeChannel, setActiveChannel] = useState("product");
   const [productData, setProductData] = useState(REQUESTS_DATA);
   const [aiData, setAiData]           = useState(AI_FEEDBACK_DATA);
@@ -607,6 +609,25 @@ export default function App() {
             >
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7C6AF7", display: "inline-block", animation: activeChannel === "ai" ? "pulse-dot 2s infinite" : "none" }}></span>
               #ai-feedback
+            </div>
+
+            {/* User profile */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 12, borderLeft: "1px solid #2A2C3A" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                <div style={{ fontSize: 11, color: "#E2E4EC", fontWeight: 500 }}>{user?.name || 'User'}</div>
+                <div style={{ fontSize: 9, color: "#6B7280" }}>{user?.email || ''}</div>
+              </div>
+              {user?.picture && (
+                <img src={user.picture} alt="Profile" style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #2A2C3A" }} />
+              )}
+              <button
+                onClick={signOut}
+                style={{ background: "#1E2030", color: "#9CA3AF", border: "1px solid #2A2C3A", borderRadius: 5, padding: "6px 10px", fontSize: 10, fontFamily: "'DM Mono', monospace", transition: "all 0.15s" }}
+                onMouseOver={(e) => { e.currentTarget.style.color = "#F87171"; e.currentTarget.style.borderColor = "#3d1616"; }}
+                onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.borderColor = "#2A2C3A"; }}
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         </div>

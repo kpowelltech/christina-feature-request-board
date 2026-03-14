@@ -26,6 +26,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+import "dotenv/config";
 import fs from "fs";
 import path from "path";
 import Anthropic from "@anthropic-ai/sdk";

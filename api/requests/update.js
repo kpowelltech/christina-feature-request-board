@@ -1,15 +1,17 @@
 /**
  * Vercel Serverless Function
  * PATCH /api/requests/update - Update a feature request (typically status updates)
+ * PROTECTED: Requires authentication
  */
 
 import { neon } from '@neondatabase/serverless';
+import { withAuth } from './_lib/authMiddleware.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cookie');
 
   // Handle OPTIONS request for CORS preflight
   if (req.method === 'OPTIONS') {
@@ -36,48 +38,57 @@ export default async function handler(req, res) {
     // Initialize Neon client
     const sql = neon(process.env.DATABASE_URL);
 
-    // Build and execute update query
+    // Get authenticated user email for audit tracking
+    const updatedByEmail = req.user.email;
+
+    // Build and execute update query with audit tracking
     let rows;
 
     if (status && asanaId !== undefined && slackTs !== undefined) {
       rows = await sql`
         UPDATE feature_requests
-        SET status = ${status}, asana_id = ${asanaId}, slack_ts = ${slackTs}, updated_at = CURRENT_TIMESTAMP
+        SET status = ${status}, asana_id = ${asanaId}, slack_ts = ${slackTs},
+            updated_by_email = ${updatedByEmail}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
       `;
     } else if (status && asanaId !== undefined) {
       rows = await sql`
         UPDATE feature_requests
-        SET status = ${status}, asana_id = ${asanaId}, updated_at = CURRENT_TIMESTAMP
+        SET status = ${status}, asana_id = ${asanaId},
+            updated_by_email = ${updatedByEmail}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
       `;
     } else if (status && slackTs !== undefined) {
       rows = await sql`
         UPDATE feature_requests
-        SET status = ${status}, slack_ts = ${slackTs}, updated_at = CURRENT_TIMESTAMP
+        SET status = ${status}, slack_ts = ${slackTs},
+            updated_by_email = ${updatedByEmail}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
       `;
     } else if (status) {
       rows = await sql`
         UPDATE feature_requests
-        SET status = ${status}, updated_at = CURRENT_TIMESTAMP
+        SET status = ${status},
+            updated_by_email = ${updatedByEmail}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
       `;
     } else if (asanaId !== undefined) {
       rows = await sql`
         UPDATE feature_requests
-        SET asana_id = ${asanaId}, updated_at = CURRENT_TIMESTAMP
+        SET asana_id = ${asanaId},
+            updated_by_email = ${updatedByEmail}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
       `;
     } else if (slackTs !== undefined) {
       rows = await sql`
         UPDATE feature_requests
-        SET slack_ts = ${slackTs}, updated_at = CURRENT_TIMESTAMP
+        SET slack_ts = ${slackTs},
+            updated_by_email = ${updatedByEmail}, updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
       `;
@@ -101,3 +112,6 @@ export default async function handler(req, res) {
     });
   }
 }
+
+// Export with auth middleware
+export default withAuth(handler);

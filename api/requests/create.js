@@ -1,15 +1,17 @@
 /**
  * Vercel Serverless Function
  * POST /api/requests/create - Create a new feature request
+ * PROTECTED: Requires authentication
  */
 
 import { neon } from '@neondatabase/serverless';
+import { withAuth } from './_lib/authMiddleware.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cookie');
 
   // Handle OPTIONS request for CORS preflight
   if (req.method === 'OPTIONS') {
@@ -66,15 +68,20 @@ export default async function handler(req, res) {
     // Initialize Neon client
     const sql = neon(process.env.DATABASE_URL);
 
-    // Insert into database
+    // Get authenticated user email
+    const createdByEmail = req.user.email;
+
+    // Insert into database with audit tracking
     const rows = await sql`
       INSERT INTO feature_requests (
         id, merchant, mrr, arr, type, category, request_group, request,
-        context, submitted_by, date, status, asana_id, slack_ts, slack_user, channel
+        context, submitted_by, date, status, asana_id, slack_ts, slack_user, channel,
+        created_by_email
       )
       VALUES (
         ${id}, ${merchant}, ${mrr}, ${arr}, ${type}, ${category}, ${requestGroup}, ${request},
-        ${context}, ${submittedBy}, ${date}, ${status}, ${asanaId}, ${slackTs}, ${slackUser}, ${channel}
+        ${context}, ${submittedBy}, ${date}, ${status}, ${asanaId}, ${slackTs}, ${slackUser}, ${channel},
+        ${createdByEmail}
       )
       RETURNING *
     `;
@@ -97,3 +104,6 @@ export default async function handler(req, res) {
     });
   }
 }
+
+// Export with auth middleware
+export default withAuth(handler);

@@ -6,8 +6,11 @@
     "db:reset": "node database/init.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@neondatabase/serverless": "^0.10.4",
+    "cookie": "^1.1.1",
     "dotenv": "^17.3.1",
-    "vercel": "^50.32.4"
+    "jsonwebtoken": "^9.0.3",
+    "vercel": "^50.32.5"
   }
 }

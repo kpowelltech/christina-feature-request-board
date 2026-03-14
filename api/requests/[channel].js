@@ -2,15 +2,17 @@
  * Vercel Serverless Function
  * GET /api/requests/[channel] - Fetch all feature requests for a specific channel
  * Example: GET /api/requests/product or GET /api/requests/ai
+ * PROTECTED: Requires authentication
  */
 
 import { neon } from '@neondatabase/serverless';
+import { withAuth } from '../_lib/authMiddleware.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cookie');
 
   // Handle OPTIONS request for CORS preflight
   if (req.method === 'OPTIONS') {
@@ -72,3 +74,6 @@ export default async function handler(req, res) {
     });
   }
 }
+
+// Export with auth middleware
+export default withAuth(handler);

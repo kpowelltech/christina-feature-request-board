@@ -38,6 +38,7 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS feature_requests (
         id VARCHAR(50) PRIMARY KEY,
         merchant VARCHAR(255) NOT NULL,
+        app_id VARCHAR(255),
         mrr INTEGER DEFAULT 0,
         arr INTEGER DEFAULT 0,
         type VARCHAR(50) NOT NULL CHECK (type IN ('feature', 'integration')),
@@ -51,12 +52,25 @@ async function initDatabase() {
         asana_id VARCHAR(100),
         slack_ts VARCHAR(50),
         slack_user VARCHAR(50),
-        channel VARCHAR(50) DEFAULT 'product' CHECK (channel IN ('product', 'ai')),
+        channel VARCHAR(50) DEFAULT '#product',
+        is_workflow BOOLEAN DEFAULT false,
+        created_by_email VARCHAR(255),
+        updated_by_email VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
     console.log('  ✓ Table created');
+
+    // Add columns to existing table if they don't exist (for existing databases)
+    console.log('  Adding auth tracking columns (if needed)...');
+    try {
+      await sql`ALTER TABLE feature_requests ADD COLUMN IF NOT EXISTS created_by_email VARCHAR(255)`;
+      await sql`ALTER TABLE feature_requests ADD COLUMN IF NOT EXISTS updated_by_email VARCHAR(255)`;
+      console.log('  ✓ Auth tracking columns ensured');
+    } catch (error) {
+      console.log('  ⚠ Columns may already exist (this is fine)');
+    }
 
     // Create indexes
     console.log('  Creating indexes...');
