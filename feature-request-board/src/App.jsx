@@ -13,6 +13,7 @@ const statusConfig = {
 };
 
 const categoryColors = {
+  // Product channel categories (original 23)
   Loyalty:           "#A78BFA",
   Reviews:           "#F472B6",
   Checkout:          "#34D399",
@@ -41,6 +42,13 @@ const categoryColors = {
   "AI Copy":         "#A78BFA",
   "AI Personalization": "#FB923C",
   "AI Analytics":    "#34D399",
+  // AI Feedback channel categories (7 new)
+  "AI Push Flows":              "#C4B5FD",  // Purple
+  "AI Content & Video Generation": "#DDD6FE",  // Lavender
+  "AI Autopilot":               "#7C6AF7",  // Deep Purple
+  "AI Billing & Pricing":       "#FEF3C7",  // Light Yellow
+  "Analytics & Reporting":      "#86EFAC",  // Green
+  "Other":                      "#9CA3AF",  // Gray
 };
 
 function formatMRR(n) {
@@ -116,10 +124,14 @@ function RequestsPanel({
   const [sortBy, setSortBy] = useState("date");
   const [subTab, setSubTab] = useState("requests");
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [expandedSubtopics, setExpandedSubtopics] = useState({});
   const [slackModal, setSlackModal] = useState(null);
 
   const toggleGroup = (key) =>
     setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const toggleSubtopic = (key) =>
+    setExpandedSubtopics(prev => ({ ...prev, [key]: !prev[key] }));
 
   const handleSendToSlack = (group) => {
     const merchantList = group.rows
@@ -137,15 +149,52 @@ function RequestsPanel({
   };
 
   const grouped = useMemo(() => {
-    const map = {};
+    const categoryMap = {};
+
+    // First, group by category
     data.forEach(r => {
-      const key = r.topic || r.requestGroup || 'Uncategorized';
-      if (!map[key]) map[key] = { key, type: r.type, category: r.category, rows: [], totalMrr: 0, totalArr: 0 };
-      map[key].rows.push(r);
-      map[key].totalMrr += (r.mrr || 0);
-      map[key].totalArr += (r.arr || 0);
+      const categoryKey = r.category || 'Uncategorized';
+      if (!categoryMap[categoryKey]) {
+        categoryMap[categoryKey] = {
+          key: categoryKey,
+          type: r.type,
+          category: r.category,
+          subtopics: {},
+          rows: [],
+          totalMrr: 0,
+          totalArr: 0
+        };
+      }
+
+      // Then group by subtopic within category
+      const subtopicKey = r.topic || r.requestGroup || 'Uncategorized';
+      if (!categoryMap[categoryKey].subtopics[subtopicKey]) {
+        categoryMap[categoryKey].subtopics[subtopicKey] = {
+          key: subtopicKey,
+          type: r.type,
+          category: r.category,
+          rows: [],
+          totalMrr: 0,
+          totalArr: 0
+        };
+      }
+
+      // Add to subtopic
+      categoryMap[categoryKey].subtopics[subtopicKey].rows.push(r);
+      categoryMap[categoryKey].subtopics[subtopicKey].totalMrr += (r.mrr || 0);
+      categoryMap[categoryKey].subtopics[subtopicKey].totalArr += (r.arr || 0);
+
+      // Also add to category totals
+      categoryMap[categoryKey].rows.push(r);
+      categoryMap[categoryKey].totalMrr += (r.mrr || 0);
+      categoryMap[categoryKey].totalArr += (r.arr || 0);
     });
-    return Object.values(map);
+
+    // Convert subtopics object to array for each category
+    return Object.values(categoryMap).map(cat => ({
+      ...cat,
+      subtopics: Object.values(cat.subtopics)
+    }));
   }, [data]);
 
   const totalARR = useMemo(() => grouped.reduce((s, g) => s + g.totalArr, 0), [grouped]);
@@ -291,7 +340,6 @@ function RequestsPanel({
           <div style={{ display: "flex", alignItems: "center", padding: "0 16px 6px", gap: 12, fontSize: 10, color: "#4B5563", textTransform: "uppercase", letterSpacing: "0.08em" }}>
             <div style={{ width: 28, flexShrink: 0 }}></div>
             <div style={{ flex: 2 }}>Topic</div>
-            <div style={{ width: 100, flexShrink: 0 }}>Category</div>
             <div style={{ width: 80, textAlign: "center", flexShrink: 0 }}>Reports</div>
             <div style={{ width: 80, textAlign: "right", flexShrink: 0 }}>MRR</div>
             <div style={{ width: 90, textAlign: "right", flexShrink: 0 }}>ARR</div>
@@ -310,44 +358,38 @@ function RequestsPanel({
                 </div>
               )}
 
-              {section.groups.map(group => {
-                const isOpen = !!expandedGroups[group.key];
-                const cc = categoryColors[group.category] || "#9CA3AF";
-                const sc = statusConfig[groupStatus(group.rows)];
-                const hasMultiple = group.rows.length > 1;
-                const latestDate = group.rows.map(r => r.date).sort().reverse()[0];
+              {section.groups.map(category => {
+                const isCategoryOpen = !!expandedGroups[category.key];
+                const sc = statusConfig[groupStatus(category.rows)];
+                const hasMultiple = category.rows.length > 1;
 
                 return (
-                  <div key={group.key} className="group-row">
-                    <div className="group-header" onClick={() => toggleGroup(group.key)} style={{ cursor: "pointer" }}>
-                      <span className={`chevron ${isOpen ? "open" : ""}`}>▶</span>
+                  <div key={category.key} className="group-row">
+                    <div className="group-header" onClick={() => toggleGroup(category.key)} style={{ cursor: "pointer" }}>
+                      <span className={`chevron ${isCategoryOpen ? "open" : ""}`}>▶</span>
 
                       <div style={{ flex: 2, minWidth: 0 }}>
                         <div style={{ marginBottom: 3, display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ color: "#E2E4EC", fontSize: 12, fontWeight: 500 }}>{group.key}</span>
-                          <span style={{ fontSize: 9, color: "#4B5563" }}>{latestDate}</span>
+                          <span style={{ color: "#E2E4EC", fontSize: 13, fontWeight: 600 }}>{category.key}</span>
+                          <span style={{ fontSize: 9, color: "#4B5563" }}>{category.subtopics.length} subtopic{category.subtopics.length !== 1 ? "s" : ""}</span>
                         </div>
-                        <div style={{ fontSize: 10, color: "#4B5563", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 340 }}>
-                          {group.rows[0].request}
-                          {group.rows.length > 1 ? ` +${group.rows.length - 1} more` : ""}
+                        <div style={{ fontSize: 10, color: "#6B7280" }}>
+                          {category.subtopics.slice(0, 3).map(st => st.key).join(", ")}
+                          {category.subtopics.length > 3 && ` +${category.subtopics.length - 3} more`}
                         </div>
-                      </div>
-
-                      <div style={{ width: 100, flexShrink: 0 }}>
-                        <span className="badge" style={{ background: `${cc}18`, color: cc, border: `1px solid ${cc}30` }}>{group.category}</span>
                       </div>
 
                       <div style={{ textAlign: "center", width: 80, flexShrink: 0 }}>
-                        <div style={{ fontSize: 14, color: hasMultiple ? "#E2E4EC" : "#6B7280", fontWeight: hasMultiple ? 600 : 400 }}>{group.rows.length}</div>
-                        <div style={{ fontSize: 9, color: "#4B5563" }}>report{group.rows.length !== 1 ? "s" : ""}</div>
+                        <div style={{ fontSize: 14, color: hasMultiple ? "#E2E4EC" : "#6B7280", fontWeight: hasMultiple ? 600 : 400 }}>{category.rows.length}</div>
+                        <div style={{ fontSize: 9, color: "#4B5563" }}>report{category.rows.length !== 1 ? "s" : ""}</div>
                       </div>
 
                       <div style={{ textAlign: "right", width: 80, flexShrink: 0 }}>
-                        <div style={{ fontSize: 12, color: "#9CA3AF" }}>{formatMRR(group.totalMrr)}</div>
+                        <div style={{ fontSize: 12, color: "#9CA3AF" }}>{formatMRR(category.totalMrr)}</div>
                       </div>
 
                       <div style={{ textAlign: "right", width: 90, flexShrink: 0 }}>
-                        <div style={{ fontSize: 14, color: "#E2E4EC", fontWeight: 500 }}>{formatARR(group.totalArr)}</div>
+                        <div style={{ fontSize: 14, color: "#E2E4EC", fontWeight: 500 }}>{formatARR(category.totalArr)}</div>
                       </div>
 
                       <div style={{ width: 100, flexShrink: 0, display: "flex", justifyContent: "center" }}>
@@ -355,8 +397,8 @@ function RequestsPanel({
                       </div>
 
                       <div style={{ display: "flex", gap: 6, flexShrink: 0, width: 150 }} onClick={e => e.stopPropagation()}>
-                        {groupStatus(group.rows) === "pending" && (
-                          <button className="action-btn" onClick={() => handleSendToSlack(group)} style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30" }}>
+                        {groupStatus(category.rows) === "pending" && (
+                          <button className="action-btn" onClick={() => handleSendToSlack(category)} style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30" }}>
                             → Slack
                           </button>
                         )}
@@ -366,7 +408,49 @@ function RequestsPanel({
                       </div>
                     </div>
 
-                    {isOpen && group.rows.map(r => {
+                    {isCategoryOpen && category.subtopics.map(subtopic => {
+                      const subtopicKey = `${category.key}:${subtopic.key}`;
+                      const isSubtopicOpen = !!expandedSubtopics[subtopicKey];
+                      const ssc = statusConfig[groupStatus(subtopic.rows)];
+                      const subtopicLatestDate = subtopic.rows.map(r => r.date).sort().reverse()[0];
+
+                      return (
+                        <div key={subtopicKey} style={{ background: "#0E0F14", borderTop: "1px solid #1A1B24" }}>
+                          <div className="group-header" onClick={() => toggleSubtopic(subtopicKey)} style={{ cursor: "pointer", paddingLeft: "44px" }}>
+                            <span className={`chevron ${isSubtopicOpen ? "open" : ""}`}>▶</span>
+
+                            <div style={{ flex: 2, minWidth: 0 }}>
+                              <div style={{ marginBottom: 3, display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ color: "#C4C7D4", fontSize: 12, fontWeight: 500 }}>{subtopic.key}</span>
+                                <span style={{ fontSize: 9, color: "#4B5563" }}>{subtopicLatestDate}</span>
+                              </div>
+                              <div style={{ fontSize: 10, color: "#6B7280", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
+                                {subtopic.rows.map(r => r.merchant).filter(m => m !== "Unknown").slice(0, 3).join(", ")}
+                                {subtopic.rows.length > 3 ? ` +${subtopic.rows.length - 3} more` : ""}
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: "center", width: 80, flexShrink: 0 }}>
+                              <div style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>{subtopic.rows.length}</div>
+                              <div style={{ fontSize: 9, color: "#4B5563" }}>report{subtopic.rows.length !== 1 ? "s" : ""}</div>
+                            </div>
+
+                            <div style={{ textAlign: "right", width: 80, flexShrink: 0 }}>
+                              <div style={{ fontSize: 11, color: "#6B7280" }}>{formatMRR(subtopic.totalMrr)}</div>
+                            </div>
+
+                            <div style={{ textAlign: "right", width: 90, flexShrink: 0 }}>
+                              <div style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>{formatARR(subtopic.totalArr)}</div>
+                            </div>
+
+                            <div style={{ width: 100, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+                              <span className="badge" style={{ background: ssc.bg, color: ssc.color, fontSize: 9 }}>{ssc.label}</span>
+                            </div>
+
+                            <div style={{ width: 150, flexShrink: 0 }}></div>
+                          </div>
+
+                          {isSubtopicOpen && subtopic.rows.map(r => {
                       const msc = statusConfig[r.status];
                       return (
                         <div key={r.id} className="merchant-sub-row">
@@ -441,6 +525,9 @@ function RequestsPanel({
                               ×
                             </button>
                           </div>
+                        </div>
+                      );
+                    })}
                         </div>
                       );
                     })}
@@ -897,6 +984,7 @@ export default function App() {
         onSave={handleEditRequest}
         request={selectedRequest}
         existingTopics={existingTopics}
+        isAiChannel={activeChannel === 'ai'}
       />
     </div>
   );

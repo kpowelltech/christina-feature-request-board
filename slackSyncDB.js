@@ -169,8 +169,8 @@ function simpleParse(text, channelName, isWorkflow = false) {
 // ─── Claude-powered parser (optional) ─────────────────────────────────────────
 const anthropic = USE_CLAUDE ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
 
-// Base system prompt (shared across all channels)
-const BASE_PARSE_PROMPT = `You are a data extraction assistant for a mobile commerce platform (Tapcart).
+// Product channel system prompt
+const PRODUCT_PARSE_PROMPT = `You are a data extraction assistant for a mobile commerce platform (Tapcart).
 You receive raw Slack messages from internal team channels and must extract structured product/feature request data.
 
 Return ONLY valid JSON matching this exact schema — no markdown, no explanation:
@@ -179,7 +179,7 @@ Return ONLY valid JSON matching this exact schema — no markdown, no explanatio
   "appId": "string | null",
   "mrr": "number (monthly recurring revenue)",
   "type": "feature | integration",
-  "category": "one of: Cart, Checkout, PDP, Search, Navigation, Push Flows, Loyalty, Reviews, Analytics, API/Dev, Product, Wishlist, Integrations, Promotions, Messaging, Media, Accessibility, Billing, Compliance, Documentation, Personalization, Subscriptions",
+  "category": "one of: Cart, Checkout, PDP, Search, Navigation, Push Flows, Loyalty, Reviews, Analytics, API/Dev, Product, Wishlist, Integrations, Promotions, Messaging, Media, Accessibility, Billing, Compliance, Documentation, Personalization, Subscriptions, For You Feed",
   "requestGroup": "2-6 word group label summarizing the topic (used for deduplication grouping)",
   "context": "one-sentence summary or context of the request (what they want and why), or null",
   "submittedBy": "name of person submitting if mentioned, else 'Unknown'"
@@ -189,18 +189,46 @@ Rules:
 - type="integration" if the request involves a third-party tool (Klaviyo, Yotpo, AppsFlyer, Recharge, etc.)
 - type="feature" for native app features, bugs, and UX improvements
 - requestGroup must be concise and reusable — similar requests from different merchants should get the same requestGroup
+- context should be a helpful one-sentence summary that captures the essence of the request
+- If the message is clearly not a product request (e.g. just a reaction, link, or off-topic), return {"skip": true}`;
+
+// AI Feedback channel system prompt (7 AI-focused categories)
+const AI_FEEDBACK_PARSE_PROMPT = `You are a data extraction assistant for Tapcart's AI Pro product.
+You receive raw Slack messages from the #ai-feedback channel containing AI-specific feature requests and feedback.
+
+Return ONLY valid JSON matching this exact schema — no markdown, no explanation:
+{
+  "merchant": "string | 'Unknown'",
+  "appId": "string | null",
+  "mrr": "number (monthly recurring revenue)",
+  "type": "feature | integration",
+  "category": "one of: AI Push Flows, For You Feed, AI Content & Video Generation, AI Autopilot, AI Billing & Pricing, Analytics & Reporting, Other",
+  "requestGroup": "2-6 word group label summarizing the topic (used for deduplication grouping)",
+  "context": "one-sentence summary or context of the request (what they want and why), or null",
+  "submittedBy": "name of person submitting if mentioned, else 'Unknown'"
+}
+
+Rules:
+- type="integration" if the request involves a third-party tool
+- type="feature" for AI product features, improvements, and bugs
+- Category selection guide:
+  * "AI Push Flows": Push notifications, flows (welcome, abandon cart, browse, winback), AI tuning, guardrails, timing
+  * "For You Feed": Product discovery, recommendations, FYF-specific features
+  * "AI Content & Video Generation": AI-generated copy, images, videos, media creation
+  * "AI Autopilot": Autopilot features and autonomous AI behavior
+  * "AI Billing & Pricing": Credits, trials, billing, pricing, subscription concerns
+  * "Analytics & Reporting": Dashboards, metrics, attribution, performance data
+  * "Other": Anything that doesn't clearly fit the above
+- requestGroup must be concise and reusable — similar requests from different merchants should get the same requestGroup
 - context should be a helpful one-sentence summary that captures the essence of the request`;
 
-// Channel-specific skip instruction (only for #product)
-const SKIP_INSTRUCTION = `\n- If the message is clearly not a product request (e.g. just a reaction, link, or off-topic), return {"skip": true}`;
-
 function getSystemPrompt(channelName) {
-  // #ai-feedback: dedicated feedback channel, parse everything
+  // #ai-feedback: AI-specific categories
   if (channelName === "#ai-feedback") {
-    return BASE_PARSE_PROMPT;
+    return AI_FEEDBACK_PARSE_PROMPT;
   }
-  // #product: mixed channel, allow skipping off-topic messages
-  return BASE_PARSE_PROMPT + SKIP_INSTRUCTION;
+  // #product: product categories with skip instruction
+  return PRODUCT_PARSE_PROMPT;
 }
 
 // Rate limiting: track last API call time
@@ -263,11 +291,13 @@ async function parseMessageWithClaude(text, channelName, isWorkflow = false) {
 }
 
 // ─── Topic Assignment ─────────────────────────────────────────────────────────
-function assignTopic(category, requestGroup, request, context) {
+function assignTopic(category, requestGroup, request, context, channel) {
   const lowerRequest = (request + " " + (context || "")).toLowerCase();
 
-  // PUSH FLOWS TOPICS
-  if (category === "Push Flows") {
+  // ===== PRODUCT CHANNEL TOPICS =====
+
+  // PUSH FLOWS TOPICS (Product channel)
+  if (category === "Push Flows" && channel !== "#ai-feedback") {
     if (lowerRequest.match(/welcome|onboarding/)) return "Welcome Flow";
     if (lowerRequest.match(/abandon.*cart|cart.*abandon|cart recovery/)) return "Abandon Cart Flow";
     if (lowerRequest.match(/browse.*abandon/)) return "Browse Abandonment Flow";
@@ -280,8 +310,8 @@ function assignTopic(category, requestGroup, request, context) {
     return "Push Performance"; // default
   }
 
-  // ANALYTICS TOPICS
-  if (category === "Analytics") {
+  // ANALYTICS TOPICS (Product channel)
+  if (category === "Analytics" && channel !== "#ai-feedback") {
     if (lowerRequest.match(/push.*analytic|dashboard|date range/)) return "AI Push Analytics";
     if (lowerRequest.match(/attribution|accuracy|discrepancy|cvr|credit.*track/)) return "Attribution & Data Accuracy";
     if (lowerRequest.match(/winback|cart recovery|migration/)) return "Flow-Specific Analytics";
@@ -289,8 +319,8 @@ function assignTopic(category, requestGroup, request, context) {
     return "Dashboard Visibility"; // default
   }
 
-  // MEDIA TOPICS
-  if (category === "Media") {
+  // MEDIA TOPICS (Product channel)
+  if (category === "Media" && channel !== "#ai-feedback") {
     if (lowerRequest.match(/video.*ui/)) return "AI Video UI";
     if (lowerRequest.match(/video.*edit/)) return "AI Video Editing";
     if (lowerRequest.match(/video.*generat/)) return "AI Video Generation";
@@ -298,14 +328,92 @@ function assignTopic(category, requestGroup, request, context) {
     return "AI Video"; // default
   }
 
-  // API/DEV TOPICS
-  if (category === "API/Dev") {
+  // API/DEV TOPICS (Product channel)
+  if (category === "API/Dev" && channel !== "#ai-feedback") {
     if (lowerRequest.match(/cli/)) return "CLI Access";
     if (lowerRequest.match(/security/)) return "Security";
     return "Security"; // default
   }
 
-  // No topic for other categories yet
+  // ===== AI FEEDBACK CHANNEL TOPICS (Dynamic subtopics) =====
+
+  // AI PUSH FLOWS SUBTOPICS
+  if (category === "AI Push Flows") {
+    if (lowerRequest.match(/welcome|onboarding/)) return "Welcome Flow";
+    if (lowerRequest.match(/abandon.*cart|cart.*abandon|cart recovery/)) return "Abandon Cart Flow";
+    if (lowerRequest.match(/browse.*abandon/)) return "Browse Abandonment Flow";
+    if (lowerRequest.match(/winback|win.*back/)) return "Winback Flow";
+    if (lowerRequest.match(/tuning|guardrail|audience|feedback.*control|user.*exclusion|control/)) return "AI Tuning & Guardrails";
+    if (lowerRequest.match(/discount|code|promo/)) return "Discount Codes";
+    if (lowerRequest.match(/translat|spanish|language|localization/)) return "Translations";
+    if (lowerRequest.match(/quiet.*hour|time.*restrict|timing|send.*time|scheduling/)) return "Time Restrictions";
+    if (lowerRequest.match(/personalization|custom|tailor/)) return "Personalization";
+    if (lowerRequest.match(/performance|optimization|speed/)) return "Performance";
+    // Use requestGroup as dynamic subtopic if nothing matches
+    return requestGroup || "General Push Flows";
+  }
+
+  // FOR YOU FEED SUBTOPICS
+  if (category === "For You Feed") {
+    if (lowerRequest.match(/discovery|browse|explore/)) return "Product Discovery";
+    if (lowerRequest.match(/recommend|suggestion|personali/)) return "Recommendations";
+    if (lowerRequest.match(/integration|data|sync/)) return "Data Integration";
+    if (lowerRequest.match(/ui|interface|design|layout/)) return "UI/UX";
+    if (lowerRequest.match(/performance|speed|load/)) return "Performance";
+    // Use requestGroup as dynamic subtopic
+    return requestGroup || "General FYF";
+  }
+
+  // AI CONTENT & VIDEO GENERATION SUBTOPICS
+  if (category === "AI Content & Video Generation") {
+    if (lowerRequest.match(/video.*generat|generat.*video/)) return "Video Generation";
+    if (lowerRequest.match(/video.*edit/)) return "Video Editing";
+    if (lowerRequest.match(/video.*ui|video.*interface/)) return "Video UI";
+    if (lowerRequest.match(/image|photo|picture/)) return "Image Generation";
+    if (lowerRequest.match(/copy|text|caption|description|writing/)) return "Copy Generation";
+    if (lowerRequest.match(/template|style|brand/)) return "Templates & Styling";
+    // Use requestGroup as dynamic subtopic
+    return requestGroup || "General Content";
+  }
+
+  // AI AUTOPILOT SUBTOPICS
+  if (category === "AI Autopilot") {
+    if (lowerRequest.match(/automation|auto.*mode/)) return "Automation";
+    if (lowerRequest.match(/control|override|manual/)) return "Controls";
+    if (lowerRequest.match(/config|setting|preference/)) return "Configuration";
+    // Use requestGroup as dynamic subtopic
+    return requestGroup || "General Autopilot";
+  }
+
+  // AI BILLING & PRICING SUBTOPICS
+  if (category === "AI Billing & Pricing") {
+    if (lowerRequest.match(/credit|usage|consumption/)) return "Credits & Usage";
+    if (lowerRequest.match(/trial|demo|test/)) return "Trials";
+    if (lowerRequest.match(/pric|cost|fee|charge/)) return "Pricing";
+    if (lowerRequest.match(/bill|invoice|payment/)) return "Billing";
+    if (lowerRequest.match(/plan|tier|subscription/)) return "Plans & Tiers";
+    // Use requestGroup as dynamic subtopic
+    return requestGroup || "General Billing";
+  }
+
+  // ANALYTICS & REPORTING SUBTOPICS
+  if (category === "Analytics & Reporting") {
+    if (lowerRequest.match(/push.*analytic|push.*metric/)) return "Push Analytics";
+    if (lowerRequest.match(/attribution|credit.*track|conversion.*track/)) return "Attribution";
+    if (lowerRequest.match(/dashboard|visual/)) return "Dashboards";
+    if (lowerRequest.match(/export|download|report/)) return "Reporting";
+    if (lowerRequest.match(/accuracy|discrepancy|data.*quality/)) return "Data Accuracy";
+    if (lowerRequest.match(/fyf|feed.*analytic/)) return "FYF Analytics";
+    // Use requestGroup as dynamic subtopic
+    return requestGroup || "General Analytics";
+  }
+
+  // OTHER CATEGORY - use requestGroup as subtopic
+  if (category === "Other") {
+    return requestGroup || "Uncategorized";
+  }
+
+  // No topic for other categories
   return null;
 }
 
@@ -430,7 +538,7 @@ async function syncChannel(channelKey) {
       type:         parsed.type        || "feature",
       category,
       requestGroup,
-      topic:        assignTopic(category, requestGroup, request, context),  // Auto-assign topic
+      topic:        assignTopic(category, requestGroup, request, context, channel.name),  // Auto-assign topic with channel
       request,  // Always use raw Slack text
       context,  // AI-generated summary
       submittedBy:  parsed.submittedBy !== "Unknown" ? parsed.submittedBy : username,

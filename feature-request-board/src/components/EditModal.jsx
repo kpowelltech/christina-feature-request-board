@@ -8,8 +8,9 @@ import { useState, useEffect } from 'react';
  * @param {function} onSave - Callback when save is confirmed
  * @param {object} request - The request object to edit
  * @param {array} existingTopics - List of existing topics for autocomplete
+ * @param {boolean} isAiChannel - Whether this is for AI feedback channel
  */
-export default function EditModal({ isOpen, onClose, onSave, request, existingTopics = [] }) {
+export default function EditModal({ isOpen, onClose, onSave, request, existingTopics = [], isAiChannel = false }) {
   const [formData, setFormData] = useState({
     merchant: '',
     mrr: '',
@@ -23,8 +24,19 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // Categories (from slackSyncDB.js and migration)
-  const categories = [
+  // AI Feedback categories (7 predefined categories for AI channel)
+  const aiCategories = [
+    'AI Push Flows',
+    'For You Feed',
+    'AI Content & Video Generation',
+    'AI Autopilot',
+    'AI Billing & Pricing',
+    'Analytics & Reporting',
+    'Other'
+  ];
+
+  // Product categories (original 23 categories for product channel)
+  const productCategories = [
     'Push Flows',
     'Analytics',
     'Media',
@@ -50,16 +62,8 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
     'For You Feed'
   ].sort();
 
-  // Predefined topics (7 categories)
-  const predefinedTopics = [
-    'AI Push Flows',
-    'For You Feed',
-    'AI Content & Video Generation',
-    'AI Autopilot',
-    'AI Billing & Pricing',
-    'Analytics & Reporting',
-    'Other'
-  ];
+  // Select categories based on channel
+  const categories = isAiChannel ? aiCategories : productCategories;
 
   const statuses = ['pending', 'sent_to_slack', 'asana_created'];
 
@@ -237,21 +241,21 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
               </select>
             </div>
 
-            {/* Topic (fixed dropdown) */}
+            {/* Topic (dynamic/freeform subtopic) */}
             <div>
               <label style={labelStyle}>
-                Topic
+                Topic (Subtopic)
               </label>
-              <select
+              <input
+                type="text"
                 value={formData.topic}
                 onChange={(e) => handleChange('topic', e.target.value)}
                 style={inputStyle}
-              >
-                <option value="">Select a topic...</option>
-                {predefinedTopics.map((topic) => (
-                  <option key={topic} value={topic}>{topic}</option>
-                ))}
-              </select>
+                placeholder="Auto-assigned or enter manually (e.g., Welcome Flow, Abandon Cart)"
+              />
+              <p style={{ fontSize: 9, color: '#4B5563', marginTop: 4 }}>
+                Subtopics are automatically assigned by AI or can be manually entered
+              </p>
             </div>
 
             {/* Request */}
