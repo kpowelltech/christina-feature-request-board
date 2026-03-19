@@ -22,16 +22,8 @@ export function AuthProvider({ children }) {
       }
     }, 5 * 60 * 1000) // 5 minutes
 
-    // Set up auto-refresh before token expiry (refresh every 6 days for 7-day token)
-    const refreshInterval = setInterval(() => {
-      if (status === 'authenticated') {
-        refreshSession()
-      }
-    }, 6 * 24 * 60 * 60 * 1000) // 6 days
-
     return () => {
       clearInterval(validationInterval)
-      clearInterval(refreshInterval)
     }
   }, [status])
 

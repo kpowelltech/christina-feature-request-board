@@ -86,7 +86,7 @@ async function handler(req, res) {
       })
     }
 
-    // SLIDING WINDOW: Issue new token with extended expiry (7 days from now)
+    // SLIDING WINDOW: Issue new token (expires when browser closes)
     const newToken = jwt.sign(
       {
         email: decoded.email,
@@ -98,14 +98,14 @@ async function handler(req, res) {
       },
       process.env.NEXTAUTH_SECRET,
       {
-        expiresIn: '7d', // 7 days with refresh capability
+        expiresIn: '24h', // 24 hours max, but cookie expires when browser closes
       }
     )
 
-    // Set new HTTP-only cookie with extended expiry
+    // Set new HTTP-only session cookie (no Max-Age = expires when browser closes)
     res.setHeader(
       'Set-Cookie',
-      `session=${newToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`
+      `session=${newToken}; Path=/; HttpOnly; Secure; SameSite=Lax`
     )
 
     // SECURITY: Set security headers
@@ -120,7 +120,7 @@ async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: 'Session refreshed successfully',
-      expiresIn: '7d',
+      expiresIn: '24h',
     })
   } catch (error) {
     console.error('❌ Token refresh error:', error)

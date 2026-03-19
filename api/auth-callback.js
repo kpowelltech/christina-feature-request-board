@@ -90,7 +90,7 @@ async function handler(req, res) {
       return res.end()
     }
 
-    // Create JWT session token with 7-day expiry (with refresh capability)
+    // Create JWT session token (expires when browser closes)
     const sessionToken = jwt.sign(
       {
         email: userInfo.email,
@@ -101,13 +101,13 @@ async function handler(req, res) {
       },
       process.env.NEXTAUTH_SECRET,
       {
-        expiresIn: '7d', // 7 days with auto-refresh mechanism
+        expiresIn: '24h', // 24 hours max, but cookie expires when browser closes
       }
     )
 
-    // Set HTTP-only cookie and redirect (7-day expiry)
+    // Set HTTP-only session cookie (no Max-Age = expires when browser closes)
     res.writeHead(302, {
-      'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`,
+      'Set-Cookie': `session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax`,
       Location: '/',
     })
 
