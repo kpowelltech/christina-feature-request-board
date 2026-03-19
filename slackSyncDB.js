@@ -347,6 +347,7 @@ async function insertRequest(entry) {
 }
 
 async function getExistingSlackTs(channel) {
+  // Note: Includes ALL records (active AND deleted) to prevent re-hydration of deleted entries
   const result = await sql`
     SELECT slack_ts FROM feature_requests
     WHERE channel = ${channel} AND slack_ts IS NOT NULL
@@ -355,6 +356,7 @@ async function getExistingSlackTs(channel) {
 }
 
 async function getLatestSlackTs(channel) {
+  // Note: Includes ALL records (active AND deleted) to get the true latest timestamp
   const result = await sql`
     SELECT slack_ts FROM feature_requests
     WHERE channel = ${channel} AND slack_ts IS NOT NULL

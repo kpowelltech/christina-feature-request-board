@@ -24,8 +24,10 @@ CREATE TABLE IF NOT EXISTS feature_requests (
   is_workflow BOOLEAN DEFAULT false,
   created_by_email VARCHAR(255),
   updated_by_email VARCHAR(255),
+  deleted_by_email VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP
 );
 
 -- Create index on channel for faster queries
@@ -42,3 +44,6 @@ CREATE INDEX IF NOT EXISTS idx_request_group ON feature_requests(request_group);
 
 -- Create index on topic for grouping
 CREATE INDEX IF NOT EXISTS idx_topic ON feature_requests(topic);
+
+-- Create index on deleted_at for filtering active/deleted records
+CREATE INDEX IF NOT EXISTS idx_deleted_at ON feature_requests(deleted_at);

@@ -41,7 +41,7 @@ async function handler(req, res) {
     // Initialize Neon client
     const sql = neon(process.env.DATABASE_URL);
 
-    // Query database
+    // Query database (exclude soft-deleted records)
     const rows = await sql`
       SELECT
         id,
@@ -65,6 +65,7 @@ async function handler(req, res) {
         is_workflow AS "isWorkflow"
       FROM feature_requests
       WHERE channel = ${dbChannel}
+        AND deleted_at IS NULL
       ORDER BY date DESC
     `;
 

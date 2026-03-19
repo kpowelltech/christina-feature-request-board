@@ -6,5 +6,11 @@
       "source": "/((?!api).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/slack-sync",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }

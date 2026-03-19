@@ -36,22 +36,27 @@ async function handler(req, res) {
     // Get authenticated user email for audit logging
     const deletedByEmail = req.user.email;
 
-    // Delete the request
+    // Soft delete the request (mark as deleted instead of removing)
     const rows = await sql`
-      DELETE FROM feature_requests
-      WHERE id = ${id}
-      RETURNING id, merchant, request
+      UPDATE feature_requests
+      SET
+        deleted_at = NOW(),
+        deleted_by_email = ${deletedByEmail},
+        updated_at = NOW()
+      WHERE id = ${id} AND deleted_at IS NULL
+      RETURNING id, merchant, request, slack_ts
     `;
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Request not found' });
+      return res.status(404).json({ error: 'Request not found or already deleted' });
     }
 
     // Log the deletion
-    console.log(`Request deleted by ${deletedByEmail}:`, {
+    console.log(`Request soft-deleted by ${deletedByEmail}:`, {
       id: rows[0].id,
       merchant: rows[0].merchant,
-      request: rows[0].request
+      request: rows[0].request,
+      slack_ts: rows[0].slack_ts
     });
 
     return res.status(200).json({
