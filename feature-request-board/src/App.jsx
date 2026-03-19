@@ -375,8 +375,31 @@ function RequestsPanel({
                             <div style={{ color: "#4B5563", fontSize: 10, marginTop: 1 }}>via {r.submittedBy || "Unknown"} · {r.date}</div>
                           </div>
                           <div style={{ flex: 2, minWidth: 0 }}>
-                            <div style={{ color: "#9CA3AF", fontSize: 11, lineHeight: 1.45 }}>{r.request}</div>
-                            {r.context && <div style={{ color: "#4B5563", fontSize: 10, marginTop: 2, lineHeight: 1.4 }}>{r.context.slice(0, 200)}{r.context.length > 200 ? "…" : ""}</div>}
+                            {/* AI-derived context at top in white with scrollable container */}
+                            {r.context && (
+                              <div style={{
+                                color: "#E2E4EC",
+                                fontSize: 11,
+                                lineHeight: 1.45,
+                                marginBottom: 8,
+                                maxHeight: "80px",
+                                overflowY: "auto",
+                                paddingRight: "4px"
+                              }}>
+                                {r.context}
+                              </div>
+                            )}
+                            {/* Raw text at bottom in grey with scrollable container */}
+                            <div style={{
+                              color: "#6B7280",
+                              fontSize: 10,
+                              lineHeight: 1.4,
+                              maxHeight: "60px",
+                              overflowY: "auto",
+                              paddingRight: "4px"
+                            }}>
+                              {r.request}
+                            </div>
                           </div>
                           <div style={{ width: 100, flexShrink: 0 }}></div>
                           <div style={{ width: 80, textAlign: "right", flexShrink: 0 }}>
