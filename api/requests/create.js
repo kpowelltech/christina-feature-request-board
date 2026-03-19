@@ -5,7 +5,7 @@
  */
 
 import { neon } from '@neondatabase/serverless';
-import { withAuth } from './_lib/authMiddleware.js';
+import { withAuth } from '../_lib/authMiddleware.js';
 
 async function handler(req, res) {
   // Set CORS headers
