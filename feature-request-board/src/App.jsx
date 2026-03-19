@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { REQUESTS_DATA } from "./requestsData";
 import { AI_FEEDBACK_DATA } from "./aiFeedbackData";
 import { useAuth } from "./contexts/AuthContext";
+import DeleteModal from "./components/DeleteModal";
+import EditModal from "./components/EditModal";
 
 // ─── Shared config ────────────────────────────────────────────────────────────
 const statusConfig = {
@@ -20,7 +22,7 @@ const categoryColors = {
   Navigation:        "#6EE7B7",
   Search:            "#93C5FD",
   PDP:               "#FCA5A5",
-  "Push Notifications": "#C4B5FD",
+  "Push Flows":      "#C4B5FD",
   "API/Dev":         "#67E8F9",
   Analytics:         "#86EFAC",
   Product:           "#FDA4AF",
@@ -33,6 +35,7 @@ const categoryColors = {
   Billing:           "#FEF3C7",
   Compliance:        "#FCE7F3",
   Documentation:     "#E5E7EB",
+  "For You Feed":    "#FCD34D",
   // AI-specific
   "AI Pushes":       "#7C6AF7",
   "AI Copy":         "#A78BFA",
@@ -96,7 +99,16 @@ const SHARED_CSS = `
 `;
 
 // ─── Reusable RequestsPanel ───────────────────────────────────────────────────
-function RequestsPanel({ data, setData, showToast, slackChannel = "#product", accentColor = "#7C6AF7" }) {
+function RequestsPanel({
+  data,
+  setData,
+  showToast,
+  slackChannel = "#product",
+  accentColor = "#7C6AF7",
+  onDelete,
+  onEdit,
+  isAiChannel = false
+}) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -127,7 +139,7 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
   const grouped = useMemo(() => {
     const map = {};
     data.forEach(r => {
-      const key = r.requestGroup;
+      const key = r.topic || r.requestGroup || 'Uncategorized';
       if (!map[key]) map[key] = { key, type: r.type, category: r.category, rows: [], totalMrr: 0, totalArr: 0 };
       map[key].rows.push(r);
       map[key].totalMrr += (r.mrr || 0);
@@ -278,9 +290,8 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
           {/* Column headers */}
           <div style={{ display: "flex", alignItems: "center", padding: "0 16px 6px", gap: 12, fontSize: 10, color: "#4B5563", textTransform: "uppercase", letterSpacing: "0.08em" }}>
             <div style={{ width: 28, flexShrink: 0 }}></div>
-            <div style={{ flex: 2 }}>Request / Group</div>
+            <div style={{ flex: 2 }}>Topic</div>
             <div style={{ width: 100, flexShrink: 0 }}>Category</div>
-            <div style={{ width: 90, flexShrink: 0 }}>Type</div>
             <div style={{ width: 80, textAlign: "center", flexShrink: 0 }}>Reports</div>
             <div style={{ width: 80, textAlign: "right", flexShrink: 0 }}>MRR</div>
             <div style={{ width: 90, textAlign: "right", flexShrink: 0 }}>ARR</div>
@@ -326,14 +337,6 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
                         <span className="badge" style={{ background: `${cc}18`, color: cc, border: `1px solid ${cc}30` }}>{group.category}</span>
                       </div>
 
-                      <div style={{ width: 90, flexShrink: 0 }}>
-                        <span className="badge" style={{
-                          background: group.type === "feature" ? "rgba(52,211,153,0.1)" : "rgba(96,165,250,0.1)",
-                          color: group.type === "feature" ? "#34D399" : "#60A5FA",
-                          border: `1px solid ${group.type === "feature" ? "#34D39930" : "#60A5FA30"}`
-                        }}>{group.type}</span>
-                      </div>
-
                       <div style={{ textAlign: "center", width: 80, flexShrink: 0 }}>
                         <div style={{ fontSize: 14, color: hasMultiple ? "#E2E4EC" : "#6B7280", fontWeight: hasMultiple ? 600 : 400 }}>{group.rows.length}</div>
                         <div style={{ fontSize: 9, color: "#4B5563" }}>report{group.rows.length !== 1 ? "s" : ""}</div>
@@ -376,7 +379,6 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
                             {r.context && <div style={{ color: "#4B5563", fontSize: 10, marginTop: 2, lineHeight: 1.4 }}>{r.context.slice(0, 200)}{r.context.length > 200 ? "…" : ""}</div>}
                           </div>
                           <div style={{ width: 100, flexShrink: 0 }}></div>
-                          <div style={{ width: 90, flexShrink: 0 }}></div>
                           <div style={{ width: 80, textAlign: "right", flexShrink: 0 }}>
                             <div style={{ fontSize: 11, color: "#6B7280" }}>{formatMRR(r.mrr)}</div>
                           </div>
@@ -386,8 +388,35 @@ function RequestsPanel({ data, setData, showToast, slackChannel = "#product", ac
                           <div style={{ width: 100, display: "flex", justifyContent: "center", flexShrink: 0 }}>
                             <span className="badge" style={{ background: msc.bg, color: msc.color, fontSize: 9 }}>{msc.label}</span>
                           </div>
-                          <div style={{ width: 150, flexShrink: 0 }}>
-                            {r.asanaId && <span style={{ fontSize: 10, color: "#4B5563" }}>{r.asanaId}</span>}
+                          <div style={{ width: 150, flexShrink: 0, display: "flex", gap: 4, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
+                            {r.slackTs && (
+                              <a
+                                href={`https://tapcart.slack.com/archives/${slackChannel === '#product' ? import.meta.env.VITE_PRODUCT_CHANNEL_ID || 'C0000000000' : import.meta.env.VITE_AI_FEEDBACK_CHANNEL_ID || 'C0000000000'}/p${r.slackTs.replace('.', '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="action-btn"
+                                style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30", fontSize: 10, padding: "4px 8px", textDecoration: "none" }}
+                                title="View in Slack"
+                              >
+                                Slack →
+                              </a>
+                            )}
+                            <button
+                              onClick={() => onEdit(r)}
+                              className="action-btn"
+                              style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30", fontSize: 10, padding: "4px 8px" }}
+                              title="Edit request"
+                            >
+                              ✎
+                            </button>
+                            <button
+                              onClick={() => onDelete(r)}
+                              className="action-btn"
+                              style={{ background: "#1E2030", color: "#EF4444", border: "1px solid #EF444430", fontSize: 10, padding: "4px 8px" }}
+                              title="Delete request"
+                            >
+                              ×
+                            </button>
                           </div>
                         </div>
                       );
@@ -534,9 +563,85 @@ export default function App() {
   const [aiDataLoading, setAiDataLoading] = useState(false);
   const [aiDataError, setAiDataError] = useState(null);
 
+  // Modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+
   const showToast = (msg) => {
     setToastMsg({ msg });
     setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  // Get unique topics for autocomplete
+  const existingTopics = useMemo(() => {
+    const allData = [...productData, ...aiData];
+    const topics = allData
+      .map(r => r.topic)
+      .filter(Boolean)
+      .filter((topic, index, self) => self.indexOf(topic) === index);
+    return topics.sort();
+  }, [productData, aiData]);
+
+  // Delete request
+  const handleDeleteRequest = async (id) => {
+    try {
+      const response = await fetch('/api/requests/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete request');
+      }
+
+      // Remove from local state
+      if (activeChannel === 'product') {
+        setProductData(prev => prev.filter(r => r.id !== id));
+      } else {
+        setAiData(prev => prev.filter(r => r.id !== id));
+      }
+
+      showToast('Request deleted successfully');
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      throw error;
+    }
+  };
+
+  // Edit request
+  const handleEditRequest = async (updateData) => {
+    try {
+      const response = await fetch('/api/requests/edit', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updateData)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update request');
+      }
+
+      const result = await response.json();
+      const updatedRequest = result.data;
+
+      // Update local state
+      if (activeChannel === 'product') {
+        setProductData(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
+      } else {
+        setAiData(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
+      }
+
+      showToast('Request updated successfully');
+    } catch (error) {
+      console.error('Error updating request:', error);
+      throw error;
+    }
   };
 
   // Fetch AI feedback data from database on mount
@@ -670,6 +775,15 @@ export default function App() {
               showToast={showToast}
               slackChannel="#product"
               accentColor="#34D399"
+              onDelete={(request) => {
+                setSelectedRequest(request);
+                setDeleteModalOpen(true);
+              }}
+              onEdit={(request) => {
+                setSelectedRequest(request);
+                setEditModalOpen(true);
+              }}
+              isAiChannel={false}
             />
           </div>
         )}
@@ -719,6 +833,15 @@ export default function App() {
                 showToast={showToast}
                 slackChannel="#ai-feedback"
                 accentColor="#7C6AF7"
+                onDelete={(request) => {
+                  setSelectedRequest(request);
+                  setDeleteModalOpen(true);
+                }}
+                onEdit={(request) => {
+                  setSelectedRequest(request);
+                  setEditModalOpen(true);
+                }}
+                isAiChannel={true}
               />
             )}
           </div>
@@ -730,6 +853,28 @@ export default function App() {
       {toastMsg && (
         <div className="toast"><span style={{ color: "#34D399", marginRight: 6 }}>✓</span>{toastMsg.msg}</div>
       )}
+
+      {/* Modals */}
+      <DeleteModal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setSelectedRequest(null);
+        }}
+        onConfirm={handleDeleteRequest}
+        request={selectedRequest}
+      />
+
+      <EditModal
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedRequest(null);
+        }}
+        onSave={handleEditRequest}
+        request={selectedRequest}
+        existingTopics={existingTopics}
+      />
     </div>
   );
 }

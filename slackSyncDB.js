@@ -103,9 +103,9 @@ function simpleParse(text, channelName, isWorkflow = false) {
 
     // Map workflow category to standardized request group
     const categoryMap = {
-      "AI Push Flow": "Push Notifications",
+      "AI Push Flow": "Push Flows",
       "AI Content": "Product",
-      "AI Winback": "Push Notifications",
+      "AI Winback": "Push Flows",
     };
     const requestGroup = categoryMap[workflowCategory] || workflowCategory || "Product";
 
@@ -140,7 +140,7 @@ function simpleParse(text, channelName, isWorkflow = false) {
     "Checkout": ["checkout", "payment", "purchase"],
     "PDP": ["pdp", "product detail", "product page"],
     "Search": ["search", "find", "filter"],
-    "Push Notifications": ["push", "notification", "alert"],
+    "Push Flows": ["push", "notification", "alert"],
     "Loyalty": ["loyalty", "rewards", "points"],
     "Analytics": ["analytics", "tracking", "data"],
     "API/Dev": ["api", "webhook", "developer", "sdk"],
@@ -179,7 +179,7 @@ Return ONLY valid JSON matching this exact schema — no markdown, no explanatio
   "appId": "string | null",
   "mrr": "number (monthly recurring revenue)",
   "type": "feature | integration",
-  "category": "one of: Cart, Checkout, PDP, Search, Navigation, Push Notifications, Loyalty, Reviews, Analytics, API/Dev, Product, Wishlist, Integrations, Promotions, Messaging, Media, Accessibility, Billing, Compliance, Documentation, Personalization, Subscriptions",
+  "category": "one of: Cart, Checkout, PDP, Search, Navigation, Push Flows, Loyalty, Reviews, Analytics, API/Dev, Product, Wishlist, Integrations, Promotions, Messaging, Media, Accessibility, Billing, Compliance, Documentation, Personalization, Subscriptions",
   "requestGroup": "2-6 word group label summarizing the topic (used for deduplication grouping)",
   "context": "one-sentence summary or context of the request (what they want and why), or null",
   "submittedBy": "name of person submitting if mentioned, else 'Unknown'"
@@ -262,6 +262,53 @@ async function parseMessageWithClaude(text, channelName, isWorkflow = false) {
   }
 }
 
+// ─── Topic Assignment ─────────────────────────────────────────────────────────
+function assignTopic(category, requestGroup, request, context) {
+  const lowerRequest = (request + " " + (context || "")).toLowerCase();
+
+  // PUSH FLOWS TOPICS
+  if (category === "Push Flows") {
+    if (lowerRequest.match(/welcome|onboarding/)) return "Welcome Flow";
+    if (lowerRequest.match(/abandon.*cart|cart.*abandon|cart recovery/)) return "Abandon Cart Flow";
+    if (lowerRequest.match(/browse.*abandon/)) return "Browse Abandonment Flow";
+    if (lowerRequest.match(/winback/)) return "Winback Flow";
+    if (lowerRequest.match(/performance|analytics|attribution|roi|conversion/)) return "Push Performance";
+    if (lowerRequest.match(/tuning|guardrail|audience|feedback.*control|user.*exclusion|AI.*control/)) return "AI Tuning";
+    if (lowerRequest.match(/discount|code|promo/)) return "Discount Codes";
+    if (lowerRequest.match(/translat|spanish|language/)) return "Translations";
+    if (lowerRequest.match(/quiet.*hour|time.*restrict|timing|send.*time|9pm|1 am/)) return "Time Restrictions / Options";
+    return "Push Performance"; // default
+  }
+
+  // ANALYTICS TOPICS
+  if (category === "Analytics") {
+    if (lowerRequest.match(/push.*analytic|dashboard|date range/)) return "AI Push Analytics";
+    if (lowerRequest.match(/attribution|accuracy|discrepancy|cvr|credit.*track/)) return "Attribution & Data Accuracy";
+    if (lowerRequest.match(/winback|cart recovery|migration/)) return "Flow-Specific Analytics";
+    if (lowerRequest.match(/visibility|can't see|dashboard/)) return "Dashboard Visibility";
+    return "Dashboard Visibility"; // default
+  }
+
+  // MEDIA TOPICS
+  if (category === "Media") {
+    if (lowerRequest.match(/video.*ui/)) return "AI Video UI";
+    if (lowerRequest.match(/video.*edit/)) return "AI Video Editing";
+    if (lowerRequest.match(/video.*generat/)) return "AI Video Generation";
+    if (lowerRequest.match(/image/)) return "AI Images";
+    return "AI Video"; // default
+  }
+
+  // API/DEV TOPICS
+  if (category === "API/Dev") {
+    if (lowerRequest.match(/cli/)) return "CLI Access";
+    if (lowerRequest.match(/security/)) return "Security";
+    return "Security"; // default
+  }
+
+  // No topic for other categories yet
+  return null;
+}
+
 // ─── Database helpers ─────────────────────────────────────────────────────────
 function tsToDate(ts) {
   return new Date(parseFloat(ts) * 1000).toISOString().split("T")[0];
@@ -287,11 +334,11 @@ async function getNextId(channel) {
 async function insertRequest(entry) {
   await sql`
     INSERT INTO feature_requests (
-      id, merchant, app_id, mrr, arr, type, category, request_group, request, context,
+      id, merchant, app_id, mrr, arr, type, category, request_group, topic, request, context,
       submitted_by, date, status, slack_ts, slack_user, channel, is_workflow
     ) VALUES (
       ${entry.id}, ${entry.merchant}, ${entry.appId}, ${entry.mrr}, ${entry.arr}, ${entry.type},
-      ${entry.category}, ${entry.requestGroup}, ${entry.request}, ${entry.context},
+      ${entry.category}, ${entry.requestGroup}, ${entry.topic}, ${entry.request}, ${entry.context},
       ${entry.submittedBy}, ${entry.date}, ${entry.status}, ${entry.slackTs},
       ${entry.slackUser}, ${entry.channel}, ${entry.isWorkflow}
     )
@@ -367,6 +414,11 @@ async function syncChannel(channelKey) {
 
     const username = await resolveUsername(msg.user);
 
+    const category = parsed.category || "Product";
+    const requestGroup = parsed.requestGroup || "Uncategorized";
+    const request = msg.text;
+    const context = parsed.context || null;
+
     const entry = {
       id:           `${channel.idPrefix}-${msg.ts}`,  // Use Slack message timestamp as ID
       merchant:     parsed.merchant    || "Unknown",
@@ -374,10 +426,11 @@ async function syncChannel(channelKey) {
       mrr:          parsed.mrr         || 0,
       arr:          parsed.mrr ? parsed.mrr * 12 : 0,  // Calculate ARR from MRR
       type:         parsed.type        || "feature",
-      category:     parsed.category    || "Product",
-      requestGroup: parsed.requestGroup|| "Uncategorized",
-      request:      msg.text,  // Always use raw Slack text
-      context:      parsed.context     || null,  // AI-generated summary
+      category,
+      requestGroup,
+      topic:        assignTopic(category, requestGroup, request, context),  // Auto-assign topic
+      request,  // Always use raw Slack text
+      context,  // AI-generated summary
       submittedBy:  parsed.submittedBy !== "Unknown" ? parsed.submittedBy : username,
       date:         tsToDate(msg.ts),
       status:       "pending",

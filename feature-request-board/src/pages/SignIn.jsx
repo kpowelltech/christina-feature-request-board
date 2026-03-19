@@ -75,12 +75,6 @@ export default function SignIn() {
           }}>
             Feature Request Board
           </h1>
-          <p style={{
-            color: '#999',
-            fontSize: '14px',
-          }}>
-            Sign in with your Tapcart email
-          </p>
         </div>
 
         {errorMessage && (
@@ -146,14 +140,6 @@ export default function SignIn() {
           </svg>
           Sign in with Google
         </button>
-
-        <p style={{
-          marginTop: '24px',
-          fontSize: '12px',
-          color: '#666',
-        }}>
-          Only @tapcart.co emails are authorized
-        </p>
       </div>
     </div>
   )

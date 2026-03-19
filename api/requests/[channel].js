@@ -46,11 +46,13 @@ async function handler(req, res) {
       SELECT
         id,
         merchant,
+        app_id AS "appId",
         mrr,
         arr,
         type,
         category,
         request_group AS "requestGroup",
+        topic,
         request,
         context,
         submitted_by AS "submittedBy",
@@ -59,7 +61,8 @@ async function handler(req, res) {
         asana_id AS "asanaId",
         slack_ts AS "slackTs",
         slack_user AS "slackUser",
-        channel
+        channel,
+        is_workflow AS "isWorkflow"
       FROM feature_requests
       WHERE channel = ${dbChannel}
       ORDER BY date DESC
