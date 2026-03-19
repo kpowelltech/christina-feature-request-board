@@ -22,7 +22,6 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
   });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [showTopicSuggestions, setShowTopicSuggestions] = useState(false);
 
   // Categories (from slackSyncDB.js and migration)
   const categories = [
@@ -50,6 +49,17 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
     'Subscriptions',
     'For You Feed'
   ].sort();
+
+  // Predefined topics (7 categories)
+  const predefinedTopics = [
+    'AI Push Flows',
+    'For You Feed',
+    'AI Content & Video Generation',
+    'AI Autopilot',
+    'AI Billing & Pricing',
+    'Analytics & Reporting',
+    'Other'
+  ];
 
   const statuses = ['pending', 'sent_to_slack', 'asana_created'];
 
@@ -120,11 +130,6 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
       onClose();
     }
   };
-
-  // Filter topics based on input
-  const filteredTopics = existingTopics.filter(topic =>
-    topic.toLowerCase().includes(formData.topic.toLowerCase())
-  );
 
   const inputStyle = {
     width: '100%',
@@ -232,66 +237,21 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
               </select>
             </div>
 
-            {/* Topic (autocomplete) */}
-            <div style={{ position: 'relative' }}>
+            {/* Topic (fixed dropdown) */}
+            <div>
               <label style={labelStyle}>
                 Topic
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.topic}
-                onChange={(e) => {
-                  handleChange('topic', e.target.value);
-                  setShowTopicSuggestions(true);
-                }}
-                onFocus={() => setShowTopicSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowTopicSuggestions(false), 200)}
+                onChange={(e) => handleChange('topic', e.target.value)}
                 style={inputStyle}
-                placeholder="Type to search or create new topic"
-              />
-              <p style={{ fontSize: 9, color: '#4B5563', marginTop: 4 }}>Type a new topic name to create it</p>
-
-              {/* Topic suggestions dropdown */}
-              {showTopicSuggestions && filteredTopics.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  zIndex: 10,
-                  width: '100%',
-                  marginTop: 4,
-                  background: '#13141A',
-                  border: '1px solid #2A2C3A',
-                  borderRadius: 6,
-                  maxHeight: 192,
-                  overflowY: 'auto',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
-                }}>
-                  {filteredTopics.map((topic, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => {
-                        handleChange('topic', topic);
-                        setShowTopicSuggestions(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        textAlign: 'left',
-                        fontSize: 11,
-                        color: '#E2E4EC',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontFamily: "'DM Mono', monospace"
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#1E2030'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      {topic}
-                    </button>
-                  ))}
-                </div>
-              )}
+              >
+                <option value="">Select a topic...</option>
+                {predefinedTopics.map((topic) => (
+                  <option key={topic} value={topic}>{topic}</option>
+                ))}
+              </select>
             </div>
 
             {/* Request */}
