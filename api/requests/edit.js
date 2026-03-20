@@ -52,7 +52,7 @@ async function handler(req, res) {
     }
 
     // Validate status if provided
-    if (status && !['pending', 'sent_to_slack', 'asana_created'].includes(status)) {
+    if (status && !['pending', 'in_progress', 'qa', 'done', 'blocked'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS feature_requests (
   context TEXT,
   submitted_by VARCHAR(255),
   date DATE NOT NULL,
-  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'sent_to_slack', 'asana_created')),
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'qa', 'done', 'blocked')),
   asana_id VARCHAR(100),
   slack_ts VARCHAR(50),
   slack_user VARCHAR(50),

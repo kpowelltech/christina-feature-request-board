@@ -65,7 +65,7 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
   // Select categories based on channel
   const categories = isAiChannel ? aiCategories : productCategories;
 
-  const statuses = ['pending', 'sent_to_slack', 'asana_created'];
+  const statuses = ['pending', 'in_progress', 'qa', 'done', 'blocked'];
 
   // Initialize form when request changes
   useEffect(() => {

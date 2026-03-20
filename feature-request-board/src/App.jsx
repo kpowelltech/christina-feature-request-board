@@ -7,9 +7,11 @@ import EditModal from "./components/EditModal";
 
 // ─── Shared config ────────────────────────────────────────────────────────────
 const statusConfig = {
-  pending:      { label: "Pending",      color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
-  sent_to_slack:{ label: "Sent to Slack",color: "#60A5FA", bg: "rgba(96,165,250,0.12)" },
-  asana_created:{ label: "In Asana",     color: "#34D399", bg: "rgba(52,211,153,0.12)" },
+  pending:     { label: "Pending",     color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
+  in_progress: { label: "In Progress", color: "#60A5FA", bg: "rgba(96,165,250,0.12)" },
+  qa:          { label: "QA",          color: "#A78BFA", bg: "rgba(167,139,250,0.12)" },
+  done:        { label: "Done",        color: "#34D399", bg: "rgba(52,211,153,0.12)" },
+  blocked:     { label: "Blocked",     color: "#EF4444", bg: "rgba(239,68,68,0.12)" },
 };
 
 const categoryColors = {
@@ -115,6 +117,7 @@ function RequestsPanel({
   accentColor = "#7C6AF7",
   onDelete,
   onEdit,
+  onStatusChange,
   isAiChannel = false
 }) {
   const [search, setSearch] = useState("");
@@ -492,8 +495,30 @@ function RequestsPanel({
                           <div style={{ width: 90, textAlign: "right", flexShrink: 0 }}>
                             <div style={{ fontSize: 12, color: "#C4C7D4" }}>{formatARR(r.arr)}</div>
                           </div>
-                          <div style={{ width: 100, display: "flex", justifyContent: "center", flexShrink: 0 }}>
-                            <span className="badge" style={{ background: msc.bg, color: msc.color, fontSize: 9 }}>{msc.label}</span>
+                          <div style={{ width: 100, display: "flex", justifyContent: "center", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                            <select
+                              value={r.status}
+                              onChange={e => onStatusChange(r.id, e.target.value)}
+                              style={{
+                                background: msc.bg,
+                                color: msc.color,
+                                fontSize: 9,
+                                fontWeight: 600,
+                                border: `1px solid ${msc.color}30`,
+                                borderRadius: 10,
+                                padding: "2px 4px",
+                                cursor: "pointer",
+                                outline: "none",
+                                appearance: "none",
+                                WebkitAppearance: "none",
+                                textAlign: "center",
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {Object.entries(statusConfig).map(([key, cfg]) => (
+                                <option key={key} value={key}>{cfg.label}</option>
+                              ))}
+                            </select>
                           </div>
                           <div style={{ width: 150, flexShrink: 0, display: "flex", gap: 4, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
                             {r.slackTs && (
@@ -722,6 +747,37 @@ export default function App() {
     }
   };
 
+  // Inline status change
+  const handleStatusChange = async (id, status) => {
+    try {
+      const response = await fetch('/api/requests/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id, status })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update status');
+      }
+
+      const result = await response.json();
+      const updatedRequest = result.data;
+
+      if (activeChannel === 'product') {
+        setProductData(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
+      } else {
+        setAiData(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
+      }
+
+      showToast('Status updated');
+    } catch (error) {
+      console.error('Error updating status:', error);
+      showToast('Failed to update status');
+    }
+  };
+
   // Edit request
   const handleEditRequest = async (updateData) => {
     try {
@@ -893,6 +949,7 @@ export default function App() {
                 setSelectedRequest(request);
                 setEditModalOpen(true);
               }}
+              onStatusChange={handleStatusChange}
               isAiChannel={false}
             />
           </div>
@@ -951,6 +1008,7 @@ export default function App() {
                   setSelectedRequest(request);
                   setEditModalOpen(true);
                 }}
+                onStatusChange={handleStatusChange}
                 isAiChannel={true}
               />
             )}
