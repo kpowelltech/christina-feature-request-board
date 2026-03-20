@@ -63,9 +63,10 @@ function formatARR(n) {
   return `$${(n / 1000).toFixed(0)}k`;
 }
 function groupStatus(rows) {
-  if (rows.every(r => r.status === "asana_created")) return "asana_created";
-  if (rows.some(r => r.status === "asana_created")) return "asana_created";
-  if (rows.some(r => r.status === "sent_to_slack")) return "sent_to_slack";
+  if (rows.every(r => r.status === "done")) return "done";
+  if (rows.some(r => r.status === "blocked")) return "blocked";
+  if (rows.some(r => r.status === "qa")) return "qa";
+  if (rows.some(r => r.status === "in_progress")) return "in_progress";
   return "pending";
 }
 
@@ -454,7 +455,7 @@ function RequestsPanel({
                           </div>
 
                           {isSubtopicOpen && subtopic.rows.map(r => {
-                      const msc = statusConfig[r.status];
+                      const msc = statusConfig[r.status] || statusConfig.pending;
                       return (
                         <div key={r.id} className="merchant-sub-row">
                           <div style={{ flex: 1.2, minWidth: 0 }}>

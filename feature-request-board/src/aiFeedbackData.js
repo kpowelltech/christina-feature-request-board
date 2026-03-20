@@ -121,7 +121,7 @@ export const AI_FEEDBACK_DATA = [
     context: "Note: It looks like Android is recording opens and conversions, but iOS is not. Flows are set up via Klaviyo and pushes appear to send but revenue/opens are not tracked.",
     submittedBy: "Jake Swartz",
     date: "2026-01-13",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1212773510072980",
   },
   {
@@ -136,7 +136,7 @@ export const AI_FEEDBACK_DATA = [
     context: "Princess Polly has order tracking push notifications enabled for both AU & US. The metrics are not appearing in the dashboard though sends appear to go out.",
     submittedBy: "Stacey",
     date: "2026-01-09",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1212713854952381",
   },
   {
@@ -151,7 +151,7 @@ export const AI_FEEDBACK_DATA = [
     context: "They haven't sent any pushes via Tapcart recently and are seeing the notifications page in a constant reload loop.",
     submittedBy: "Geoffrey Burnside",
     date: "2025-11-05",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1211854323716371",
   },
   {
@@ -166,7 +166,7 @@ export const AI_FEEDBACK_DATA = [
     context: "I deleted and reinstalled the app from Google Play. The login event is in Bloomreach but the push token has not updated.",
     submittedBy: "Unknown",
     date: "2026-02-19",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1213363127664662",
   },
   {
@@ -181,7 +181,7 @@ export const AI_FEEDBACK_DATA = [
     context: "Pursue Fitness reported seeing messages multiple times in her inbox. Confirmed on other apps running 20.4.4 and 20.5.2 — not build-specific.",
     submittedBy: "Unknown",
     date: "2025-11-25",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1212159014348224",
   },
   {
@@ -196,7 +196,7 @@ export const AI_FEEDBACK_DATA = [
     context: "Merchants intermittently see an error when creating a push notification and selecting Custom Screen as the destination. More frequent with Custom Screen specifically.",
     submittedBy: "Unknown",
     date: "2026-02-25",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1213428317286321",
   },
   {
@@ -211,7 +211,7 @@ export const AI_FEEDBACK_DATA = [
     context: "The 'Before' date filter on 'Purchased last 3 days' segment returns wrong totals compared to the positive filter.",
     submittedBy: "Unknown",
     date: "2026-02-17",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1213319929970037",
   },
   {
@@ -226,7 +226,7 @@ export const AI_FEEDBACK_DATA = [
     context: "Testing some apps on 20.13.2 before submitting — not seeing search results on a couple apps. Could block the 20.14 push.",
     submittedBy: "Jesse L Tomchak",
     date: "2026-02-18",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "1213345561103911",
   },
   {

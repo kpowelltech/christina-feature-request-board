@@ -30,7 +30,7 @@ export const REQUESTS_DATA = [
     context: "Enterprise merchant — part of renewal negotiation.",
     submittedBy: "Grace",
     date: "2026-03-07",
-    status: "sent_to_slack",
+    status: "pending",
     asanaId: null,
   },
   {
@@ -60,7 +60,7 @@ export const REQUESTS_DATA = [
     context: "Missing parity with web. Direct impact on conversion rate.",
     submittedBy: "Sammi",
     date: "2026-03-05",
-    status: "asana_created",
+    status: "in_progress",
     asanaId: "ASN-1234",
   },
   {
