@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { REQUESTS_DATA } from "./requestsData";
 import { AI_FEEDBACK_DATA } from "./aiFeedbackData";
 import { useAuth } from "./contexts/AuthContext";
@@ -130,12 +130,24 @@ function RequestsPanel({
   const [expandedGroups, setExpandedGroups] = useState({});
   const [expandedSubtopics, setExpandedSubtopics] = useState({});
   const [slackModal, setSlackModal] = useState(null);
+  const [completedExpanded, setCompletedExpanded] = useState(false);
+  const [expandedCompletedGroups, setExpandedCompletedGroups] = useState({});
+  const [expandedCompletedSubtopics, setExpandedCompletedSubtopics] = useState({});
 
   const toggleGroup = (key) =>
     setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
 
   const toggleSubtopic = (key) =>
     setExpandedSubtopics(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const toggleCompletedGroup = (key) =>
+    setExpandedCompletedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const toggleCompletedSubtopic = (key) =>
+    setExpandedCompletedSubtopics(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const activeData = useMemo(() => data.filter(r => r.status !== "done"), [data]);
+  const completedData = useMemo(() => data.filter(r => r.status === "done"), [data]);
 
   const handleSendToSlack = (group) => {
     const merchantList = group.rows
@@ -152,11 +164,11 @@ function RequestsPanel({
     showToast(`Summary sent to ${slackChannel} ✓`);
   };
 
-  const grouped = useMemo(() => {
+  const buildGrouped = (items) => {
     const categoryMap = {};
 
     // First, group by category
-    data.forEach(r => {
+    items.forEach(r => {
       const categoryKey = r.category || 'Uncategorized';
       if (!categoryMap[categoryKey]) {
         categoryMap[categoryKey] = {
@@ -199,9 +211,12 @@ function RequestsPanel({
       ...cat,
       subtopics: Object.values(cat.subtopics)
     }));
-  }, [data]);
+  };
 
-  const totalARR = useMemo(() => grouped.reduce((s, g) => s + g.totalArr, 0), [grouped]);
+  const grouped = useMemo(() => buildGrouped(activeData), [activeData]);
+  const completedGrouped = useMemo(() => buildGrouped(completedData), [completedData]);
+
+  const totalARR = useMemo(() => data.reduce((s, r) => s + (r.arr || 0), 0), [data]);
   const totalMerchants = useMemo(() => new Set(data.map(r => r.merchant).filter(m => m && m !== "Unknown")).size, [data]);
 
   const rollups = useMemo(() => {
@@ -566,6 +581,175 @@ function RequestsPanel({
               )}
             </div>
           ))}
+
+          {/* Completed Section */}
+          {completedData.length > 0 && (
+            <div style={{ marginTop: 32 }}>
+              <div
+                onClick={() => setCompletedExpanded(prev => !prev)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0", cursor: "pointer", userSelect: "none" }}
+              >
+                <span className={`chevron ${completedExpanded ? "open" : ""}`} style={{ color: "#34D399" }}>▶</span>
+                <span style={{ fontSize: 12, color: "#34D399", fontWeight: 600, letterSpacing: "0.04em" }}>Completed</span>
+                <span className="badge" style={{ background: "rgba(52,211,153,0.12)", color: "#34D399" }}>{completedData.length}</span>
+                <div style={{ flex: 1, height: 1, background: "#1E2030" }} />
+              </div>
+
+              {completedExpanded && (
+                <div style={{ opacity: 0.7 }}>
+                  {completedGrouped.map(category => {
+                    const isCategoryOpen = !!expandedCompletedGroups[category.key];
+                    const sc = statusConfig[groupStatus(category.rows)];
+                    const hasMultiple = category.rows.length > 1;
+
+                    return (
+                      <div key={category.key} className="group-row">
+                        <div className="group-header" onClick={() => toggleCompletedGroup(category.key)} style={{ cursor: "pointer" }}>
+                          <span className={`chevron ${isCategoryOpen ? "open" : ""}`}>▶</span>
+
+                          <div style={{ flex: 2, minWidth: 0 }}>
+                            <div style={{ marginBottom: 3, display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ color: "#E2E4EC", fontSize: 13, fontWeight: 600 }}>{category.key}</span>
+                              <span style={{ fontSize: 9, color: "#4B5563" }}>{category.subtopics.length} subtopic{category.subtopics.length !== 1 ? "s" : ""}</span>
+                            </div>
+                            <div style={{ fontSize: 10, color: "#6B7280" }}>
+                              {category.subtopics.slice(0, 3).map(st => st.key).join(", ")}
+                              {category.subtopics.length > 3 && ` +${category.subtopics.length - 3} more`}
+                            </div>
+                          </div>
+
+                          <div style={{ textAlign: "center", width: 80, flexShrink: 0 }}>
+                            <div style={{ fontSize: 14, color: hasMultiple ? "#E2E4EC" : "#6B7280", fontWeight: hasMultiple ? 600 : 400 }}>{category.rows.length}</div>
+                            <div style={{ fontSize: 9, color: "#4B5563" }}>report{category.rows.length !== 1 ? "s" : ""}</div>
+                          </div>
+
+                          <div style={{ textAlign: "right", width: 80, flexShrink: 0 }}>
+                            <div style={{ fontSize: 12, color: "#9CA3AF" }}>{formatMRR(category.totalMrr)}</div>
+                          </div>
+
+                          <div style={{ textAlign: "right", width: 90, flexShrink: 0 }}>
+                            <div style={{ fontSize: 14, color: "#E2E4EC", fontWeight: 500 }}>{formatARR(category.totalArr)}</div>
+                          </div>
+
+                          <div style={{ width: 100, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+                            <span className="badge" style={{ background: sc.bg, color: sc.color }}>{sc.label}</span>
+                          </div>
+
+                          <div style={{ width: 150, flexShrink: 0 }}></div>
+                        </div>
+
+                        {isCategoryOpen && category.subtopics.map(subtopic => {
+                          const subtopicKey = `completed:${category.key}:${subtopic.key}`;
+                          const isSubtopicOpen = !!expandedCompletedSubtopics[subtopicKey];
+                          const ssc = statusConfig[groupStatus(subtopic.rows)];
+                          const subtopicLatestDate = subtopic.rows.map(r => r.date).sort().reverse()[0];
+
+                          return (
+                            <div key={subtopicKey} style={{ background: "#0E0F14", borderTop: "1px solid #1A1B24" }}>
+                              <div className="group-header" onClick={() => toggleCompletedSubtopic(subtopicKey)} style={{ cursor: "pointer", paddingLeft: "44px" }}>
+                                <span className={`chevron ${isSubtopicOpen ? "open" : ""}`}>▶</span>
+
+                                <div style={{ flex: 2, minWidth: 0 }}>
+                                  <div style={{ marginBottom: 3, display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ color: "#C4C7D4", fontSize: 12, fontWeight: 500 }}>{subtopic.key}</span>
+                                    <span style={{ fontSize: 9, color: "#4B5563" }}>{subtopicLatestDate}</span>
+                                  </div>
+                                  <div style={{ fontSize: 10, color: "#6B7280", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
+                                    {subtopic.rows.map(r => r.merchant).filter(m => m !== "Unknown").slice(0, 3).join(", ")}
+                                    {subtopic.rows.length > 3 ? ` +${subtopic.rows.length - 3} more` : ""}
+                                  </div>
+                                </div>
+
+                                <div style={{ textAlign: "center", width: 80, flexShrink: 0 }}>
+                                  <div style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>{subtopic.rows.length}</div>
+                                  <div style={{ fontSize: 9, color: "#4B5563" }}>report{subtopic.rows.length !== 1 ? "s" : ""}</div>
+                                </div>
+
+                                <div style={{ textAlign: "right", width: 80, flexShrink: 0 }}>
+                                  <div style={{ fontSize: 11, color: "#6B7280" }}>{formatMRR(subtopic.totalMrr)}</div>
+                                </div>
+
+                                <div style={{ textAlign: "right", width: 90, flexShrink: 0 }}>
+                                  <div style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>{formatARR(subtopic.totalArr)}</div>
+                                </div>
+
+                                <div style={{ width: 100, flexShrink: 0, display: "flex", justifyContent: "center" }}>
+                                  <span className="badge" style={{ background: ssc.bg, color: ssc.color, fontSize: 9 }}>{ssc.label}</span>
+                                </div>
+
+                                <div style={{ width: 150, flexShrink: 0 }}></div>
+                              </div>
+
+                              {isSubtopicOpen && subtopic.rows.map(r => {
+                                const msc = statusConfig[r.status] || statusConfig.pending;
+                                return (
+                                  <div key={r.id} className="merchant-sub-row">
+                                    <div style={{ flex: 1.2, minWidth: 0 }}>
+                                      <div style={{ color: "#C4C7D4", fontSize: 11, fontWeight: 500 }}>{r.merchant !== "Unknown" ? r.merchant : "(merchant TBD)"}</div>
+                                      <div style={{ color: "#4B5563", fontSize: 10, marginTop: 1 }}>via {r.submittedBy || "Unknown"} · {r.date}</div>
+                                    </div>
+                                    <div style={{ flex: 2, minWidth: 0 }}>
+                                      {r.context && (
+                                        <div style={{ color: "#E2E4EC", fontSize: 11, lineHeight: 1.45, marginBottom: 8, maxHeight: "80px", overflowY: "auto", paddingRight: "4px" }}>
+                                          {r.context}
+                                        </div>
+                                      )}
+                                      <div style={{ color: "#6B7280", fontSize: 10, lineHeight: 1.4, maxHeight: "60px", overflowY: "auto", paddingRight: "4px" }}>
+                                        {r.request}
+                                      </div>
+                                    </div>
+                                    <div style={{ width: 100, flexShrink: 0 }}></div>
+                                    <div style={{ width: 80, textAlign: "right", flexShrink: 0 }}>
+                                      <div style={{ fontSize: 11, color: "#6B7280" }}>{formatMRR(r.mrr)}</div>
+                                    </div>
+                                    <div style={{ width: 90, textAlign: "right", flexShrink: 0 }}>
+                                      <div style={{ fontSize: 12, color: "#C4C7D4" }}>{formatARR(r.arr)}</div>
+                                    </div>
+                                    <div style={{ width: 100, display: "flex", justifyContent: "center", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                                      <select
+                                        value={r.status}
+                                        onChange={e => onStatusChange(r.id, e.target.value)}
+                                        style={{
+                                          background: msc.bg, color: msc.color, fontSize: 9, fontWeight: 600,
+                                          border: `1px solid ${msc.color}30`, borderRadius: 10, padding: "2px 4px",
+                                          cursor: "pointer", outline: "none", appearance: "none", WebkitAppearance: "none",
+                                          textAlign: "center", lineHeight: 1.4,
+                                        }}
+                                      >
+                                        {Object.entries(statusConfig).map(([key, cfg]) => (
+                                          <option key={key} value={key}>{cfg.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div style={{ width: 150, flexShrink: 0, display: "flex", gap: 4, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
+                                      {r.slackTs && (
+                                        <a
+                                          href={`https://tapcart.slack.com/archives/${slackChannel === '#product' ? import.meta.env.VITE_PRODUCT_CHANNEL_ID || 'C0000000000' : import.meta.env.VITE_AI_FEEDBACK_CHANNEL_ID || 'C0000000000'}/p${r.slackTs.replace('.', '')}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="action-btn"
+                                          style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30", fontSize: 10, padding: "4px 8px", textDecoration: "none" }}
+                                          title="View in Slack"
+                                        >
+                                          Slack →
+                                        </a>
+                                      )}
+                                      <button onClick={() => onEdit(r)} className="action-btn" style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30", fontSize: 10, padding: "4px 8px" }} title="Edit request">✎</button>
+                                      <button onClick={() => onDelete(r)} className="action-btn" style={{ background: "#1E2030", color: "#EF4444", border: "1px solid #EF444430", fontSize: 10, padding: "4px 8px" }} title="Delete request">×</button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -704,9 +888,12 @@ export default function App() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
-  const showToast = (msg) => {
-    setToastMsg({ msg });
-    setTimeout(() => setToastMsg(null), 3500);
+  const toastTimerRef = useRef(null);
+
+  const showToast = (msg, onUndo) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMsg({ msg, onUndo });
+    toastTimerRef.current = setTimeout(() => setToastMsg(null), onUndo ? 5000 : 3500);
   };
 
   // Get unique topics for autocomplete
@@ -750,6 +937,10 @@ export default function App() {
 
   // Inline status change
   const handleStatusChange = async (id, status) => {
+    // Capture previous status before updating so we can undo
+    const allData = activeChannel === 'product' ? productData : aiData;
+    const previousStatus = allData.find(r => r.id === id)?.status;
+
     try {
       const response = await fetch('/api/requests/update', {
         method: 'PATCH',
@@ -772,7 +963,11 @@ export default function App() {
         setAiData(prev => prev.map(r => r.id === updatedRequest.id ? updatedRequest : r));
       }
 
-      showToast('Status updated');
+      if (status === 'done' && previousStatus && previousStatus !== 'done') {
+        showToast('Moved to Completed', () => handleStatusChange(id, previousStatus));
+      } else {
+        showToast('Status updated');
+      }
     } catch (error) {
       console.error('Error updating status:', error);
       showToast('Failed to update status');
@@ -1020,7 +1215,17 @@ export default function App() {
       </div>
 
       {toastMsg && (
-        <div className="toast"><span style={{ color: "#34D399", marginRight: 6 }}>✓</span>{toastMsg.msg}</div>
+        <div className="toast" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span><span style={{ color: "#34D399", marginRight: 6 }}>✓</span>{toastMsg.msg}</span>
+          {toastMsg.onUndo && (
+            <button
+              onClick={() => { toastMsg.onUndo(); setToastMsg(null); }}
+              style={{ background: "rgba(124,106,247,0.15)", color: "#A78BFA", border: "1px solid rgba(124,106,247,0.3)", borderRadius: 4, padding: "3px 10px", fontSize: 11, fontFamily: "'DM Mono', monospace", cursor: "pointer" }}
+            >
+              Undo
+            </button>
+          )}
+        </div>
       )}
 
       {/* Modals */}
