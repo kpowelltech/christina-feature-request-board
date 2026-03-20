@@ -4,6 +4,8 @@ import { AI_FEEDBACK_DATA } from "./aiFeedbackData";
 import { useAuth } from "./contexts/AuthContext";
 import DeleteModal from "./components/DeleteModal";
 import EditModal from "./components/EditModal";
+import CombineModal from "./components/CombineModal";
+import SuggestCombineModal from "./components/SuggestCombineModal";
 
 // ─── Shared config ────────────────────────────────────────────────────────────
 const statusConfig = {
@@ -119,7 +121,12 @@ function RequestsPanel({
   onDelete,
   onEdit,
   onStatusChange,
-  isAiChannel = false
+  isAiChannel = false,
+  selectedIds,
+  onToggleSelect,
+  onClearSelection,
+  onOpenCombine,
+  onOpenAiSuggest,
 }) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -336,6 +343,14 @@ function RequestsPanel({
                   {s.label}
                 </button>
               ))}
+              <div style={{ width: 1, height: 20, background: "#2A2C3A", margin: "0 4px" }} />
+              <button
+                onClick={onOpenAiSuggest}
+                className="sort-btn ai-glow"
+                style={{ color: "#A78BFA", borderColor: "#7C6AF730", background: "rgba(124,106,247,0.08)" }}
+              >
+                AI Suggest Merges
+              </button>
             </div>
           </div>
 
@@ -471,8 +486,17 @@ function RequestsPanel({
 
                           {isSubtopicOpen && subtopic.rows.map(r => {
                       const msc = statusConfig[r.status] || statusConfig.pending;
+                      const isSelected = selectedIds.has(r.id);
                       return (
-                        <div key={r.id} className="merchant-sub-row">
+                        <div key={r.id} className="merchant-sub-row" style={isSelected ? { background: "rgba(124,106,247,0.06)", borderLeft: "2px solid #7C6AF7" } : undefined}>
+                          <div style={{ width: 24, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => onToggleSelect(r.id)}
+                              style={{ width: 14, height: 14, cursor: "pointer", accentColor: "#7C6AF7" }}
+                            />
+                          </div>
                           <div style={{ flex: 1.2, minWidth: 0 }}>
                             <div style={{ color: "#C4C7D4", fontSize: 11, fontWeight: 500 }}>{r.merchant !== "Unknown" ? r.merchant : "(merchant TBD)"}</div>
                             <div style={{ color: "#4B5563", fontSize: 10, marginTop: 1 }}>via {r.submittedBy || "Unknown"} · {r.date}</div>
@@ -682,8 +706,17 @@ function RequestsPanel({
 
                               {isSubtopicOpen && subtopic.rows.map(r => {
                                 const msc = statusConfig[r.status] || statusConfig.pending;
+                                const isSelected = selectedIds.has(r.id);
                                 return (
-                                  <div key={r.id} className="merchant-sub-row">
+                                  <div key={r.id} className="merchant-sub-row" style={isSelected ? { background: "rgba(124,106,247,0.06)", borderLeft: "2px solid #7C6AF7" } : undefined}>
+                                    <div style={{ width: 24, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={e => e.stopPropagation()}>
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => onToggleSelect(r.id)}
+                                        style={{ width: 14, height: 14, cursor: "pointer", accentColor: "#7C6AF7" }}
+                                      />
+                                    </div>
                                     <div style={{ flex: 1.2, minWidth: 0 }}>
                                       <div style={{ color: "#C4C7D4", fontSize: 11, fontWeight: 500 }}>{r.merchant !== "Unknown" ? r.merchant : "(merchant TBD)"}</div>
                                       <div style={{ color: "#4B5563", fontSize: 10, marginTop: 1 }}>via {r.submittedBy || "Unknown"} · {r.date}</div>
@@ -850,6 +883,32 @@ function RequestsPanel({
         </div>
       )}
 
+      {/* Floating selection bar */}
+      {selectedIds.size >= 1 && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: "#13141A", border: "1px solid #7C6AF730", borderRadius: 8,
+          padding: "10px 20px", display: "flex", alignItems: "center", gap: 12,
+          zIndex: 100, boxShadow: "0 4px 24px rgba(0,0,0,0.5)", animation: "fadeInUp 0.3s ease"
+        }}>
+          <span style={{ fontSize: 12, color: "#A78BFA", fontWeight: 500 }}>{selectedIds.size} selected</span>
+          <button
+            onClick={onOpenCombine}
+            className="action-btn"
+            style={{ background: "rgba(124,106,247,0.15)", color: "#A78BFA", border: "1px solid #7C6AF740", padding: "6px 14px", fontWeight: 500 }}
+          >
+            {selectedIds.size === 1 ? "Move to Topic" : "Combine"}
+          </button>
+          <button
+            onClick={onClearSelection}
+            className="action-btn"
+            style={{ background: "#1E2030", color: "#6B7280", border: "1px solid #2A2C3A", padding: "6px 14px" }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Slack Modal */}
       {slackModal && (
         <div className="modal-overlay" onClick={() => setSlackModal(null)}>
@@ -886,7 +945,26 @@ export default function App() {
   // Modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [combineModalOpen, setCombineModalOpen] = useState(false);
+  const [suggestModalOpen, setSuggestModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+
+  // Selection state for combine
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // Clear selection when switching channels
+  useEffect(() => { clearSelection(); }, [activeChannel]);
 
   const toastTimerRef = useRef(null);
 
@@ -1005,6 +1083,77 @@ export default function App() {
       throw error;
     }
   };
+
+  // Combine entries
+  const handleCombineEntries = async (ids, topic, category) => {
+    const allData = activeChannel === 'product' ? productData : aiData;
+    // Capture previous values for undo
+    const previousValues = ids.map(id => {
+      const entry = allData.find(r => r.id === id);
+      return { id, topic: entry?.topic, category: entry?.category };
+    });
+
+    try {
+      const body = { ids, topic };
+      if (category) body.category = category;
+
+      const response = await fetch('/api/requests/combine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to combine entries');
+      }
+
+      const result = await response.json();
+      const updatedEntries = result.data;
+
+      // Update local state
+      const setData = activeChannel === 'product' ? setProductData : setAiData;
+      setData(prev => prev.map(r => {
+        const updated = updatedEntries.find(u => u.id === r.id);
+        return updated || r;
+      }));
+
+      clearSelection();
+      showToast(`Combined ${updatedEntries.length} entries under "${topic}"`, () => {
+        // Undo: restore previous topic/category for each entry
+        previousValues.forEach(async (pv) => {
+          try {
+            await fetch('/api/requests/edit', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ id: pv.id, topic: pv.topic || null, category: pv.category || undefined })
+            });
+          } catch (e) {
+            console.error('Error undoing combine for', pv.id, e);
+          }
+        });
+        // Revert local state
+        setData(prev => prev.map(r => {
+          const pv = previousValues.find(p => p.id === r.id);
+          if (pv) return { ...r, topic: pv.topic, category: pv.category || r.category };
+          return r;
+        }));
+        showToast('Combine undone');
+      });
+    } catch (error) {
+      console.error('Error combining entries:', error);
+      showToast('Failed to combine entries');
+      throw error;
+    }
+  };
+
+  // Get selected entry objects for the combine modal
+  const selectedEntries = useMemo(() => {
+    const allData = activeChannel === 'product' ? productData : aiData;
+    return allData.filter(r => selectedIds.has(r.id));
+  }, [selectedIds, activeChannel, productData, aiData]);
 
   // Fetch AI feedback data from database on mount
   useEffect(() => {
@@ -1147,6 +1296,11 @@ export default function App() {
               }}
               onStatusChange={handleStatusChange}
               isAiChannel={false}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onClearSelection={clearSelection}
+              onOpenCombine={() => setCombineModalOpen(true)}
+              onOpenAiSuggest={() => setSuggestModalOpen(true)}
             />
           </div>
         )}
@@ -1206,6 +1360,11 @@ export default function App() {
                 }}
                 onStatusChange={handleStatusChange}
                 isAiChannel={true}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onClearSelection={clearSelection}
+                onOpenCombine={() => setCombineModalOpen(true)}
+                onOpenAiSuggest={() => setSuggestModalOpen(true)}
               />
             )}
           </div>
@@ -1249,6 +1408,22 @@ export default function App() {
         request={selectedRequest}
         existingTopics={existingTopics}
         isAiChannel={activeChannel === 'ai'}
+      />
+
+      <CombineModal
+        isOpen={combineModalOpen}
+        onClose={() => setCombineModalOpen(false)}
+        onCombine={handleCombineEntries}
+        selectedEntries={selectedEntries}
+        existingTopics={existingTopics}
+        isAiChannel={activeChannel === 'ai'}
+      />
+
+      <SuggestCombineModal
+        isOpen={suggestModalOpen}
+        onClose={() => setSuggestModalOpen(false)}
+        onApply={handleCombineEntries}
+        channel={activeChannel}
       />
     </div>
   );
