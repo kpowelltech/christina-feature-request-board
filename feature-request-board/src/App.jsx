@@ -109,6 +109,9 @@ const SHARED_CSS = `
   .type-pill { border-radius: 4px; padding: 3px 10px; font-size: 10px; font-family: 'DM Mono', monospace; cursor: pointer; transition: all 0.15s; }
   .ai-glow { box-shadow: 0 0 0 1px rgba(124,106,247,0.3), 0 0 20px rgba(124,106,247,0.08); }
   @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  .skeleton { background: linear-gradient(90deg, #1E2030 25%, #2A2C3A 50%, #1E2030 75%); background-size: 800px 100%; animation: shimmer 1.5s infinite linear; border-radius: 4px; }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 `;
 
 // ─── Reusable RequestsPanel ───────────────────────────────────────────────────
@@ -127,6 +130,7 @@ function RequestsPanel({
   onClearSelection,
   onOpenCombine,
   onOpenAiSuggest,
+  loading = false,
 }) {
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -280,6 +284,87 @@ function RequestsPanel({
     }
     return [{ label: null, groups: filteredGroups }];
   }, [filteredGroups, sortBy]);
+
+  if (loading) {
+    return (
+      <div>
+        {/* Skeleton stat cards — labels visible, values shimmer */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, margin: "24px 0" }}>
+          {["Total ARR at Stake", "Unique Merchants", "Categories", "Open / Pending"].map(label => (
+            <div key={label} className="stat-card">
+              <div style={{ fontSize: 10, color: "#6B7280", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
+              <div className="skeleton" style={{ width: 70, height: 26, marginBottom: 4 }} />
+              <div className="skeleton" style={{ width: 100, height: 10, marginTop: 4 }} />
+            </div>
+          ))}
+        </div>
+
+        {/* Sub-tabs — real labels, disabled */}
+        <div style={{ borderBottom: "1px solid #1E2030", display: "flex", gap: 4, marginBottom: 16 }}>
+          <button className="tab-btn active" style={{ pointerEvents: "none" }}>All Requests</button>
+          <button className="tab-btn" style={{ pointerEvents: "none" }}>Demand Rollups</button>
+        </div>
+
+        {/* Skeleton controls row */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <div className="skeleton" style={{ width: 260, height: 30, borderRadius: 4 }} />
+          <div className="skeleton" style={{ width: 120, height: 30, borderRadius: 4 }} />
+          <div className="skeleton" style={{ width: 110, height: 30, borderRadius: 4 }} />
+          <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+            {[52, 48, 58, 56, 72].map((w, i) => (
+              <div key={i} className="skeleton" style={{ width: w, height: 28, borderRadius: 4 }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Skeleton count line */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center" }}>
+          <div className="skeleton" style={{ width: 140, height: 10, marginLeft: "auto" }} />
+        </div>
+
+        {/* Column headers — real labels */}
+        <div style={{ display: "flex", alignItems: "center", padding: "0 16px 6px", gap: 12, fontSize: 10, color: "#4B5563", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          <div style={{ width: 28, flexShrink: 0 }} />
+          <div style={{ flex: 2 }}>Topic</div>
+          <div style={{ width: 80, textAlign: "center", flexShrink: 0 }}>Reports</div>
+          <div style={{ width: 80, textAlign: "right", flexShrink: 0 }}>MRR</div>
+          <div style={{ width: 90, textAlign: "right", flexShrink: 0 }}>ARR</div>
+          <div style={{ width: 100, textAlign: "center", flexShrink: 0 }}>Status</div>
+          <div style={{ width: 150, flexShrink: 0 }}>Actions</div>
+        </div>
+
+        {/* Skeleton category rows — matching real group-row layout */}
+        {[0, 1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className="group-row" style={{ marginBottom: 8 }}>
+            <div className="group-header" style={{ cursor: "default" }}>
+              <span className="chevron" style={{ color: "#2A2C3A" }}>▶</span>
+              <div style={{ flex: 2, minWidth: 0 }}>
+                <div className="skeleton" style={{ width: `${50 + (i % 3) * 20}%`, height: 14, marginBottom: 6 }} />
+                <div className="skeleton" style={{ width: `${30 + (i % 4) * 10}%`, height: 10 }} />
+              </div>
+              <div style={{ textAlign: "center", width: 80, flexShrink: 0 }}>
+                <div className="skeleton" style={{ width: 24, height: 14, margin: "0 auto 4px" }} />
+                <div className="skeleton" style={{ width: 36, height: 9, margin: "0 auto" }} />
+              </div>
+              <div style={{ textAlign: "right", width: 80, flexShrink: 0 }}>
+                <div className="skeleton" style={{ width: 50, height: 12, marginLeft: "auto" }} />
+              </div>
+              <div style={{ textAlign: "right", width: 90, flexShrink: 0 }}>
+                <div className="skeleton" style={{ width: 60, height: 14, marginLeft: "auto" }} />
+              </div>
+              <div style={{ width: 100, display: "flex", justifyContent: "center", flexShrink: 0 }}>
+                <div className="skeleton" style={{ width: 70, height: 22, borderRadius: 12 }} />
+              </div>
+              <div style={{ width: 150, display: "flex", gap: 6, flexShrink: 0 }}>
+                <div className="skeleton" style={{ width: 60, height: 24, borderRadius: 4 }} />
+                <div className="skeleton" style={{ width: 50, height: 24, borderRadius: 4 }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -1314,14 +1399,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Loading state */}
-            {aiDataLoading && (
-              <div style={{ padding: 40, textAlign: "center" }}>
-                <div style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 8 }}>Loading AI feedback data from database...</div>
-                <div style={{ fontSize: 10, color: "#4B5563" }}>Please wait</div>
-              </div>
-            )}
-
             {/* Error state */}
             {aiDataError && !aiDataLoading && (
               <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: 16, marginTop: 16 }}>
@@ -1331,13 +1408,14 @@ export default function App() {
             )}
 
             {/* Data panel */}
-            {!aiDataLoading && !aiDataError && (
+            {!aiDataError && (
               <RequestsPanel
                 data={aiData}
                 setData={setAiData}
                 showToast={showToast}
                 slackChannel="#ai-feedback"
                 accentColor="#7C6AF7"
+                loading={aiDataLoading}
                 onDelete={(request) => {
                   setSelectedRequest(request);
                   setDeleteModalOpen(true);
