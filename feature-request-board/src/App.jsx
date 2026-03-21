@@ -129,7 +129,6 @@ function RequestsPanel({
   onOpenAiSuggest,
 }) {
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [sortBy, setSortBy] = useState("date");
@@ -245,7 +244,6 @@ function RequestsPanel({
 
   const filteredGroups = useMemo(() => {
     let result = grouped.filter(g => {
-      if (filterType !== "all" && g.type !== filterType) return false;
       if (filterCategory !== "all" && g.category !== filterCategory) return false;
       if (filterStatus !== "all" && groupStatus(g.rows) !== filterStatus) return false;
       if (search) {
@@ -269,7 +267,7 @@ function RequestsPanel({
       }
       return 0;
     });
-  }, [grouped, filterType, filterCategory, filterStatus, search, sortBy]);
+  }, [grouped, filterCategory, filterStatus, search, sortBy]);
 
   const displaySections = useMemo(() => {
     if (sortBy === "type") {
@@ -290,7 +288,7 @@ function RequestsPanel({
         {[
           { label: "Total ARR at Stake",  value: totalARR ? formatARR(totalARR) : data.length, sub: totalARR ? "across all requests" : "total requests logged" },
           { label: "Unique Merchants",    value: totalMerchants, sub: "requesting features" },
-          { label: "Request Groups",      value: grouped.length, sub: "grouped by topic" },
+          { label: "Categories",            value: grouped.length, sub: "grouped by topic" },
           { label: "Open / Pending",      value: data.filter(r => r.status === "pending").length, sub: "awaiting action" },
         ].map(s => (
           <div key={s.label} className="stat-card">
@@ -354,17 +352,7 @@ function RequestsPanel({
             </div>
           </div>
 
-          {/* Type pills */}
           <div style={{ display: "flex", gap: 6, marginBottom: 14, alignItems: "center" }}>
-            {["all", "feature", "integration"].map(t => (
-              <button key={t} className="type-pill" onClick={() => setFilterType(t)} style={{
-                background: filterType === t ? t === "feature" ? "rgba(52,211,153,0.15)" : t === "integration" ? "rgba(96,165,250,0.15)" : `rgba(124,106,247,0.15)` : "#15161E",
-                color: filterType === t ? t === "feature" ? "#34D399" : t === "integration" ? "#60A5FA" : "#A78BFA" : "#6B7280",
-                border: `1px solid ${filterType === t ? t === "feature" ? "#34D39930" : t === "integration" ? "#60A5FA30" : "#7C6AF730" : "#1E2030"}`,
-              }}>
-                {t === "all" ? "All Types" : t === "feature" ? "◆ Features" : "◈ Integrations"}
-              </button>
-            ))}
             <span style={{ fontSize: 10, color: "#4B5563", marginLeft: "auto" }}>
               {filteredGroups.length} group{filteredGroups.length !== 1 ? "s" : ""} · {filteredGroups.reduce((s, g) => s + g.rows.length, 0)} total entries
             </span>
@@ -934,7 +922,7 @@ function RequestsPanel({
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const { user, signOut } = useAuth();
-  const [activeChannel, setActiveChannel] = useState("product");
+  const [activeChannel, setActiveChannel] = useState("ai");
   const [productData, setProductData] = useState(REQUESTS_DATA);
   const [aiData, setAiData]           = useState(AI_FEEDBACK_DATA);
   const [toastMsg, setToastMsg]       = useState(null);
@@ -1253,19 +1241,19 @@ export default function App() {
       <div style={{ background: "#0B0C12", borderBottom: "1px solid #1E2030" }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", display: "flex", gap: 0 }}>
           <button
-            className={`tab-btn ${activeChannel === "product" ? "active" : ""}`}
-            onClick={() => setActiveChannel("product")}
-            style={{ padding: "12px 20px", fontSize: 13 }}
-          >
-            # product
-          </button>
-          <button
             className={`tab-btn ${activeChannel === "ai" ? "active" : ""}`}
             onClick={() => setActiveChannel("ai")}
             style={{ padding: "12px 20px", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}
           >
             # ai-feedback
             <span style={{ background: "rgba(124,106,247,0.2)", color: "#A78BFA", fontSize: 9, padding: "1px 6px", borderRadius: 10, letterSpacing: "0.05em" }}>AI PRO</span>
+          </button>
+          <button
+            className={`tab-btn ${activeChannel === "product" ? "active" : ""}`}
+            onClick={() => setActiveChannel("product")}
+            style={{ padding: "12px 20px", fontSize: 13 }}
+          >
+            # product
           </button>
         </div>
       </div>
