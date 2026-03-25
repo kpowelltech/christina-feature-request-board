@@ -63,11 +63,6 @@ function getSlackChannelId(slackChannel) {
 
 function getSlackMessageUrl(slackTs, slackChannel) {
   const channelId = getSlackChannelId(slackChannel);
-  const teamId = import.meta.env.VITE_SLACK_TEAM_ID;
-  // Use app.slack.com which prompts to open in the desktop app
-  if (teamId) {
-    return `https://app.slack.com/client/${teamId}/${channelId}/thread/${channelId}-${slackTs}`;
-  }
   return `https://tapcart.slack.com/archives/${channelId}/p${slackTs.replace('.', '')}`;
 }
 
