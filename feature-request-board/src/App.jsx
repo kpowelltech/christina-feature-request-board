@@ -64,11 +64,10 @@ function getSlackChannelId(slackChannel) {
 function getSlackMessageUrl(slackTs, slackChannel) {
   const channelId = getSlackChannelId(slackChannel);
   const teamId = import.meta.env.VITE_SLACK_TEAM_ID;
+  // Use app.slack.com which prompts to open in the desktop app
   if (teamId) {
-    // Slack's official app_redirect opens the desktop app if installed, falls back to web
-    return `https://slack.com/app_redirect?channel=${channelId}&message_ts=${slackTs}&team=${teamId}`;
+    return `https://app.slack.com/client/${teamId}/${channelId}/thread/${channelId}-${slackTs}`;
   }
-  // Fallback: standard web archive link
   return `https://tapcart.slack.com/archives/${channelId}/p${slackTs.replace('.', '')}`;
 }
 
