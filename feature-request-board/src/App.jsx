@@ -55,6 +55,28 @@ const categoryColors = {
   "Other":                      "#9CA3AF",  // Gray
 };
 
+function getSlackChannelId(slackChannel) {
+  return slackChannel === '#product'
+    ? import.meta.env.VITE_PRODUCT_CHANNEL_ID || 'C0000000000'
+    : import.meta.env.VITE_AI_FEEDBACK_CHANNEL_ID || 'C0000000000';
+}
+
+function handleSlackLink(e, slackTs, slackChannel) {
+  const channelId = getSlackChannelId(slackChannel);
+  const teamId = import.meta.env.VITE_SLACK_TEAM_ID;
+  if (teamId) {
+    e.preventDefault();
+    const appUrl = `slack://channel?team=${teamId}&id=${channelId}&message=${slackTs}`;
+    const webUrl = `https://app.slack.com/client/${teamId}/${channelId}/thread/${channelId}-${slackTs}`;
+    const w = window.open(appUrl, '_blank');
+    // Fall back to web URL if slack:// doesn't work (e.g. app not installed)
+    setTimeout(() => {
+      if (!w || w.closed) window.open(webUrl, '_blank');
+    }, 500);
+  }
+  // If no team ID configured, the href fallback (web URL) is used as-is
+}
+
 function formatMRR(n) {
   if (!n) return "—";
   return `$${(n / 1000).toFixed(1)}k`;
@@ -636,9 +658,10 @@ function RequestsPanel({
                           <div style={{ width: 150, flexShrink: 0, display: "flex", gap: 4, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
                             {r.slackTs && (
                               <a
-                                href={`https://tapcart.slack.com/archives/${slackChannel === '#product' ? import.meta.env.VITE_PRODUCT_CHANNEL_ID || 'C0000000000' : import.meta.env.VITE_AI_FEEDBACK_CHANNEL_ID || 'C0000000000'}/p${r.slackTs.replace('.', '')}`}
+                                href={`https://tapcart.slack.com/archives/${getSlackChannelId(slackChannel)}/p${r.slackTs.replace('.', '')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={(e) => handleSlackLink(e, r.slackTs, slackChannel)}
                                 className="action-btn"
                                 style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30", fontSize: 10, padding: "4px 8px", textDecoration: "none" }}
                                 title="View in Slack"
@@ -830,9 +853,10 @@ function RequestsPanel({
                                     <div style={{ width: 150, flexShrink: 0, display: "flex", gap: 4, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
                                       {r.slackTs && (
                                         <a
-                                          href={`https://tapcart.slack.com/archives/${slackChannel === '#product' ? import.meta.env.VITE_PRODUCT_CHANNEL_ID || 'C0000000000' : import.meta.env.VITE_AI_FEEDBACK_CHANNEL_ID || 'C0000000000'}/p${r.slackTs.replace('.', '')}`}
+                                          href={`https://tapcart.slack.com/archives/${getSlackChannelId(slackChannel)}/p${r.slackTs.replace('.', '')}`}
                                           target="_blank"
                                           rel="noopener noreferrer"
+                                          onClick={(e) => handleSlackLink(e, r.slackTs, slackChannel)}
                                           className="action-btn"
                                           style={{ background: "#1E2030", color: "#60A5FA", border: "1px solid #60A5FA30", fontSize: 10, padding: "4px 8px", textDecoration: "none" }}
                                           title="View in Slack"

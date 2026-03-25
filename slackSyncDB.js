@@ -76,8 +76,8 @@ async function fetchChannelHistory(channelId, oldest = null) {
   if (oldest) params.oldest = oldest;
 
   const data = await slackFetch("conversations.history", params);
-  // Include regular messages, workflow messages, and bot messages
-  return (data.messages || []).filter(m => m.type === "message" && (!m.subtype || m.subtype === "workflow_message" || m.subtype === "bot_message") && m.text?.trim());
+  // Only process structured workflow messages (bot_message / workflow_message)
+  return (data.messages || []).filter(m => m.type === "message" && (m.subtype === "bot_message" || m.subtype === "workflow_message") && m.text?.trim());
 }
 
 async function resolveUsername(userId) {
@@ -89,6 +89,25 @@ async function resolveUsername(userId) {
   }
 }
 
+// ─── Category mapping for AI feedback workflows ─────────────────────────────
+const AI_CATEGORIES = [
+  "AI Push Flows", "For You Feed", "AI Content & Video Generation",
+  "AI Autopilot", "AI Billing & Pricing", "Analytics & Reporting", "Other",
+];
+
+function mapWorkflowCategory(rawCategory, requestText) {
+  const combined = `${rawCategory || ""} ${requestText || ""}`.toLowerCase();
+
+  if (/push|flow|welcome|abandon|winback|browse abandon|notification|pn\b/.test(combined)) return "AI Push Flows";
+  if (/for you|fyf|feed|discovery|recommend/.test(combined)) return "For You Feed";
+  if (/content|video|image|copy|generat|media/.test(combined)) return "AI Content & Video Generation";
+  if (/autopilot|autonom/.test(combined)) return "AI Autopilot";
+  if (/billing|pricing|credit|trial|subscription/.test(combined)) return "AI Billing & Pricing";
+  if (/analytics|reporting|dashboard|metric|attribution|performance data/.test(combined)) return "Analytics & Reporting";
+
+  return "Other";
+}
+
 // ─── Simple fallback parser (no AI required) ──────────────────────────────────
 function simpleParse(text, channelName, isWorkflow = false) {
   const lowerText = text.toLowerCase();
@@ -97,29 +116,26 @@ function simpleParse(text, channelName, isWorkflow = false) {
     // Parse workflow format: *Field Name*\nValue
     const merchant = text.match(/\*Merchant Name\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || "Unknown";
     const appId = text.match(/\*App ID\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || null;
-    const mrr = parseInt(text.match(/\*MRR\*\s*\n\s*(\d+)/i)?.[1] || "0");
+    const mrrRaw = text.match(/\*MRR\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || "0";
+    const mrr = parseInt(mrrRaw.replace(/[$,]/g, "")) || 0;
+    const topic = text.match(/\*Topic:?\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || null;
     const workflowCategory = text.match(/\*Category\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim();
     const feedback = text.match(/\*Feedback\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || "";
 
-    // Map workflow category to standardized request group
-    const categoryMap = {
-      "AI Push Flow": "Push Flows",
-      "AI Content": "Product",
-      "AI Winback": "Push Flows",
-    };
-    const requestGroup = categoryMap[workflowCategory] || workflowCategory || "Product";
-
-    // Create context summary
-    const context = feedback ? `${workflowCategory || "Product"} feedback: ${feedback}` : null;
+    // Map raw workflow category to one of the 7 valid AI feedback categories
+    const category = mapWorkflowCategory(workflowCategory, feedback);
+    const requestGroup = category;
 
     return {
       merchant,
       appId,
       mrr,
+      topic,
+      request: feedback,
       type: "feature",
-      category: workflowCategory || "Product",  // Keep raw workflow category
-      requestGroup,  // Mapped/standardized group
-      context,  // Summary of the feedback
+      category,
+      requestGroup,
+      context: null,
       submittedBy: "Unknown",
     };
   }
@@ -235,8 +251,33 @@ function getSystemPrompt(channelName) {
 let lastApiCallTime = 0;
 const MIN_API_DELAY_MS = 12500; // 12.5 seconds = ~4.8 calls/min (under 5/min limit)
 
+async function summarizeRequest(requestText) {
+  if (!USE_CLAUDE || !requestText) return null;
+
+  try {
+    const now = Date.now();
+    const timeSinceLastCall = now - lastApiCallTime;
+    if (timeSinceLastCall < MIN_API_DELAY_MS) {
+      await new Promise(resolve => setTimeout(resolve, MIN_API_DELAY_MS - timeSinceLastCall));
+    }
+    lastApiCallTime = Date.now();
+
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 128,
+      system: "You summarize customer feedback into one concise sentence. Return ONLY the summary, no quotes or explanation.",
+      messages: [{ role: "user", content: requestText }],
+    });
+
+    return response.content[0]?.text?.trim() || null;
+  } catch (err) {
+    console.warn(`[summarize] Failed: ${err.message}`);
+    return null;
+  }
+}
+
 async function parseMessageWithClaude(text, channelName, isWorkflow = false) {
-  // For workflow messages, always use simple parser (it's already perfect for structured data)
+  // For workflow messages, use simple parser for field extraction
   if (isWorkflow) {
     return simpleParse(text, channelName, isWorkflow);
   }
@@ -526,8 +567,11 @@ async function syncChannel(channelKey) {
 
     const category = parsed.category || "Product";
     const requestGroup = parsed.requestGroup || "Uncategorized";
-    const request = msg.text;
-    const context = parsed.context || null;
+    const request = parsed.request || msg.text;
+    // For workflow entries, generate a one-sentence AI summary as context
+    const context = isWorkflow
+      ? await summarizeRequest(request)
+      : (parsed.context || null);
 
     const entry = {
       id:           `${channel.idPrefix}-${msg.ts}`,  // Use Slack message timestamp as ID
@@ -538,16 +582,16 @@ async function syncChannel(channelKey) {
       type:         parsed.type        || "feature",
       category,
       requestGroup,
-      topic:        assignTopic(category, requestGroup, request, context, channel.name),  // Auto-assign topic with channel
-      request,  // Always use raw Slack text
-      context,  // AI-generated summary
+      topic:        parsed.topic || assignTopic(category, requestGroup, request, context, channel.name),
+      request,
+      context,
       submittedBy:  parsed.submittedBy !== "Unknown" ? parsed.submittedBy : username,
       date:         tsToDate(msg.ts),
       status:       "pending",
       slackTs:      msg.ts,
       slackUser:    msg.user,
-      channel:      channel.name,  // Use full channel name like "#ai-feedback"
-      isWorkflow,  // Use Slack metadata
+      channel:      channel.name,
+      isWorkflow,
     };
 
     try {

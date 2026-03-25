@@ -53,9 +53,9 @@ async function fetchMessages(channelId, limit) {
     limit: limit,
   });
 
-  // Include regular messages, workflow messages, and bot messages
+  // Only process structured workflow messages (bot_message / workflow_message)
   return (data.messages || []).filter(
-    (m) => m.type === "message" && (!m.subtype || m.subtype === "workflow_message" || m.subtype === "bot_message") && m.text?.trim()
+    (m) => m.type === "message" && (m.subtype === "bot_message" || m.subtype === "workflow_message") && m.text?.trim()
   );
 }
 
@@ -76,7 +76,9 @@ function simpleParse(text, channelName, isWorkflow = false) {
     // Parse workflow format: *Field Name*\nValue
     const merchant = text.match(/\*Merchant Name\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || "Unknown";
     const appId = text.match(/\*App ID\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || null;
-    const mrr = parseInt(text.match(/\*MRR\*\s*\n\s*(\d+)/i)?.[1] || "0");
+    const mrrRaw = text.match(/\*MRR\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || "0";
+    const mrr = parseInt(mrrRaw.replace(/[$,]/g, "")) || 0;
+    const topic = text.match(/\*Topic:?\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || null;
     const workflowCategory = text.match(/\*Category\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim();
     const feedback = text.match(/\*Feedback\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || "";
 
@@ -88,17 +90,16 @@ function simpleParse(text, channelName, isWorkflow = false) {
     };
     const requestGroup = categoryMap[workflowCategory] || workflowCategory || "Product";
 
-    // Create context summary
-    const context = feedback ? `${workflowCategory || "Product"} feedback: ${feedback}` : null;
-
     return {
       merchant,
       appId,
       mrr,
+      topic,
+      request: feedback,
       type: "feature",
-      category: workflowCategory || "Product",  // Keep raw workflow category
-      requestGroup,  // Mapped/standardized group
-      context,  // Summary of the feedback
+      category: workflowCategory || "Product",
+      requestGroup,
+      context: null,
       submittedBy: "Unknown",
     };
   }
@@ -255,8 +256,9 @@ async function previewChannel(channelKey, limit) {
         type: parsed.type || "feature",
         category: parsed.category || "Product",
         request_group: parsed.requestGroup || "Uncategorized",
-        request: msg.text,  // Always use raw Slack text
-        context: parsed.context || null,  // AI-generated summary
+        topic: parsed.topic || null,
+        request: parsed.request || msg.text,
+        context: parsed.context || null,
         submitted_by: parsed.submittedBy !== "Unknown" ? parsed.submittedBy : username,
         date: tsToDate(msg.ts),
         status: "pending",
