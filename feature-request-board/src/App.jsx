@@ -1030,6 +1030,8 @@ export default function App() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [aiDataLoading, setAiDataLoading] = useState(false);
   const [aiDataError, setAiDataError] = useState(null);
+  const [productDataLoading, setProductDataLoading] = useState(false);
+  const [productDataError, setProductDataError] = useState(null);
 
   // Modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -1268,6 +1270,30 @@ export default function App() {
     fetchAiData();
   }, []);
 
+  // Fetch product data from database on mount
+  useEffect(() => {
+    const fetchProductData = async () => {
+      setProductDataLoading(true);
+      setProductDataError(null);
+      try {
+        const response = await fetch('/api/requests/product');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+        setProductData(data);
+      } catch (error) {
+        console.error('Error fetching product data:', error);
+        setProductDataError(error.message);
+        showToast(`Failed to load product data: ${error.message}`);
+      } finally {
+        setProductDataLoading(false);
+      }
+    };
+
+    fetchProductData();
+  }, []);
+
   const handleSync = () => {
     setSyncLoading(true);
     setTimeout(() => {
@@ -1369,28 +1395,40 @@ export default function App() {
               <div style={{ flex: 1, height: 1, background: "#1E2030" }} />
               <span style={{ fontSize: 10, color: "#4B5563" }}>{productData.length} entries</span>
             </div>
-            <RequestsPanel
-              data={productData}
-              setData={setProductData}
-              showToast={showToast}
-              slackChannel="#product"
-              accentColor="#34D399"
-              onDelete={(request) => {
-                setSelectedRequest(request);
-                setDeleteModalOpen(true);
-              }}
-              onEdit={(request) => {
-                setSelectedRequest(request);
-                setEditModalOpen(true);
-              }}
-              onStatusChange={handleStatusChange}
-              isAiChannel={false}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleSelect}
-              onClearSelection={clearSelection}
-              onOpenCombine={() => setCombineModalOpen(true)}
-              onOpenAiSuggest={() => setSuggestModalOpen(true)}
-            />
+
+            {/* Error state */}
+            {productDataError && !productDataLoading && (
+              <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: 16, marginTop: 16 }}>
+                <div style={{ fontSize: 12, color: "#F87171", fontWeight: 500, marginBottom: 4 }}>Error loading data</div>
+                <div style={{ fontSize: 10, color: "#9CA3AF" }}>{productDataError}</div>
+              </div>
+            )}
+
+            {!productDataError && (
+              <RequestsPanel
+                data={productData}
+                setData={setProductData}
+                showToast={showToast}
+                slackChannel="#product"
+                accentColor="#34D399"
+                loading={productDataLoading}
+                onDelete={(request) => {
+                  setSelectedRequest(request);
+                  setDeleteModalOpen(true);
+                }}
+                onEdit={(request) => {
+                  setSelectedRequest(request);
+                  setEditModalOpen(true);
+                }}
+                onStatusChange={handleStatusChange}
+                isAiChannel={false}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onClearSelection={clearSelection}
+                onOpenCombine={() => setCombineModalOpen(true)}
+                onOpenAiSuggest={() => setSuggestModalOpen(true)}
+              />
+            )}
           </div>
         )}
 

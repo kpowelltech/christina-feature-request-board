@@ -108,6 +108,53 @@ function mapWorkflowCategory(rawCategory, requestText) {
   return "Other";
 }
 
+// ─── Category mapping for product channel workflows ──────────────────────────
+const PRODUCT_CATEGORIES = [
+  "Loyalty", "Reviews", "Checkout", "Subscriptions", "Personalization",
+  "Cart", "Navigation", "Search", "PDP", "Push Flows", "API/Dev",
+  "Analytics", "Product", "Wishlist", "Integrations", "Promotions",
+  "Messaging", "Media", "Accessibility", "Billing", "Compliance",
+  "Documentation", "For You Feed",
+];
+
+function mapProductWorkflowCategory(rawCategory, requestText) {
+  // First try direct match against known categories (case-insensitive)
+  if (rawCategory) {
+    const directMatch = PRODUCT_CATEGORIES.find(
+      c => c.toLowerCase() === rawCategory.trim().toLowerCase()
+    );
+    if (directMatch) return directMatch;
+  }
+
+  // Fall back to keyword matching
+  const combined = `${rawCategory || ""} ${requestText || ""}`.toLowerCase();
+
+  if (/loyalty|reward|points|program/.test(combined)) return "Loyalty";
+  if (/review|rating|testimonial/.test(combined)) return "Reviews";
+  if (/checkout|payment|purchase|order/.test(combined)) return "Checkout";
+  if (/subscription|recurring|rebill|recharge/.test(combined)) return "Subscriptions";
+  if (/personali[zs]|custom|tailor/.test(combined)) return "Personalization";
+  if (/\bcart\b|bag|add to cart/.test(combined)) return "Cart";
+  if (/nav|menu|header|footer|tab.bar/.test(combined)) return "Navigation";
+  if (/search|find|filter|sort/.test(combined)) return "Search";
+  if (/pdp|product.detail|product.page/.test(combined)) return "PDP";
+  if (/push|flow|notification|welcome|abandon|winback/.test(combined)) return "Push Flows";
+  if (/api|webhook|developer|sdk|cli/.test(combined)) return "API/Dev";
+  if (/analytics|tracking|metric|dashboard|report|attribution/.test(combined)) return "Analytics";
+  if (/wishlist|wish.list|save.for.later|favorite/.test(combined)) return "Wishlist";
+  if (/integrat|klaviyo|yotpo|appsflyer|third.party/.test(combined)) return "Integrations";
+  if (/promo|discount|coupon|sale|offer/.test(combined)) return "Promotions";
+  if (/messag|sms|email|chat|inbox/.test(combined)) return "Messaging";
+  if (/media|video|image|photo|content|generat/.test(combined)) return "Media";
+  if (/accessib|ada|wcag|screen.reader/.test(combined)) return "Accessibility";
+  if (/billing|pricing|credit|trial|invoice/.test(combined)) return "Billing";
+  if (/complian|gdpr|privacy|security|legal/.test(combined)) return "Compliance";
+  if (/doc|guide|tutorial|help.center/.test(combined)) return "Documentation";
+  if (/for.you|fyf|feed|discover|recommend/.test(combined)) return "For You Feed";
+
+  return "Other";
+}
+
 // ─── Simple fallback parser (no AI required) ──────────────────────────────────
 function simpleParse(text, channelName, isWorkflow = false) {
   const lowerText = text.toLowerCase();
@@ -120,10 +167,17 @@ function simpleParse(text, channelName, isWorkflow = false) {
     const mrr = parseInt(mrrRaw.replace(/[$,]/g, "")) || 0;
     const topic = text.match(/\*Topic:?\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || null;
     const workflowCategory = text.match(/\*Category\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim();
-    const feedback = text.match(/\*Feedback\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim() || "";
+    // Product form uses "Feedback Details", AI form uses "Feedback"
+    const feedback = text.match(/\*Feedback Details\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim()
+      || text.match(/\*Feedback\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim()
+      || "";
+    // Product form has a Type field (Feature/Integration)
+    const typeRaw = text.match(/\*Type\*\s*\n\s*([^\n*]+)/i)?.[1]?.trim().toLowerCase();
 
-    // Map raw workflow category to one of the 7 valid AI feedback categories
-    const category = mapWorkflowCategory(workflowCategory, feedback);
+    // Map category based on channel
+    const category = channelName === "#ai-feedback"
+      ? mapWorkflowCategory(workflowCategory, feedback)
+      : mapProductWorkflowCategory(workflowCategory, feedback);
     const requestGroup = category;
 
     return {
@@ -132,7 +186,7 @@ function simpleParse(text, channelName, isWorkflow = false) {
       mrr,
       topic,
       request: feedback,
-      type: "feature",
+      type: typeRaw === "integration" ? "integration" : "feature",
       category,
       requestGroup,
       context: null,
