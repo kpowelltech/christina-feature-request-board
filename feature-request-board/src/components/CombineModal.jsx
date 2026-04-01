@@ -11,26 +11,14 @@ import { useState, useEffect, useMemo } from 'react';
  * @param {array} existingTopics - List of existing topics for autocomplete/dropdown
  * @param {boolean} isAiChannel - Whether this is for AI feedback channel
  */
-export default function CombineModal({ isOpen, onClose, onCombine, selectedEntries = [], existingTopics = [], isAiChannel = false }) {
+export default function CombineModal({ isOpen, onClose, onCombine, selectedEntries = [], existingTopics = [], categories = [], isAiChannel = false }) {
   const [targetTopic, setTargetTopic] = useState('');
   const [targetCategory, setTargetCategory] = useState('');
   const [isCombining, setIsCombining] = useState(false);
   const [error, setError] = useState(null);
   const [showTopicDropdown, setShowTopicDropdown] = useState(false);
-
-  const aiCategories = [
-    'AI Push Flows', 'For You Feed', 'AI Content & Video Generation',
-    'AI Autopilot', 'AI Billing & Pricing', 'Analytics & Reporting', 'Other'
-  ];
-
-  const productCategories = [
-    'Accessibility', 'Analytics', 'API/Dev', 'Billing', 'Cart', 'Checkout',
-    'Compliance', 'Documentation', 'For You Feed', 'Integrations', 'Loyalty',
-    'Media', 'Messaging', 'Navigation', 'PDP', 'Personalization', 'Product',
-    'Promotions', 'Push Flows', 'Reviews', 'Search', 'Subscriptions', 'Wishlist'
-  ];
-
-  const categories = isAiChannel ? aiCategories : productCategories;
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   // Check if entries span multiple categories
   const uniqueCategories = useMemo(() => {
@@ -239,25 +227,76 @@ export default function CombineModal({ isOpen, onClose, onCombine, selectedEntri
           </div>
 
           {/* Target category */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16, position: 'relative' }}>
             <label style={labelStyle}>
               Category
             </label>
-            <select
+            <input
+              type="text"
               value={targetCategory}
-              onChange={(e) => setTargetCategory(e.target.value)}
+              onChange={(e) => { setTargetCategory(e.target.value); setCategoryFilter(e.target.value); }}
+              onFocus={() => { setShowCategoryDropdown(true); setCategoryFilter(''); }}
+              onBlur={() => setTimeout(() => setShowCategoryDropdown(false), 200)}
               style={inputStyle}
-            >
-              <option value="">Select category...</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+              placeholder="Select or type a new category..."
+              maxLength={100}
+            />
+            {showCategoryDropdown && (() => {
+              const filter = categoryFilter.toLowerCase();
+              const filtered = filter
+                ? categories.filter(c => c.toLowerCase().includes(filter))
+                : categories;
+              const exactMatch = categories.some(c => c.toLowerCase() === targetCategory.trim().toLowerCase());
+              const showCreate = targetCategory.trim() && !exactMatch;
+              return (filtered.length > 0 || showCreate) ? (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                  background: '#15161E', border: '1px solid #2A2C3A', borderRadius: 4,
+                  maxHeight: 200, overflowY: 'auto', marginTop: 2
+                }}>
+                  {filtered.map(cat => (
+                    <div
+                      key={cat}
+                      onMouseDown={() => { setTargetCategory(cat); setCategoryFilter(''); setShowCategoryDropdown(false); }}
+                      style={{
+                        padding: '6px 12px', fontSize: 11,
+                        color: cat === targetCategory ? '#A78BFA' : '#C4C7D4',
+                        cursor: 'pointer',
+                        background: cat === targetCategory ? 'rgba(124,106,247,0.08)' : 'transparent',
+                        borderBottom: '1px solid #1A1B24'
+                      }}
+                      onMouseOver={(e) => { if (cat !== targetCategory) e.currentTarget.style.background = '#1E2030'; }}
+                      onMouseOut={(e) => { if (cat !== targetCategory) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {cat}
+                    </div>
+                  ))}
+                  {showCreate && (
+                    <div
+                      onMouseDown={() => { setTargetCategory(targetCategory.trim()); setCategoryFilter(''); setShowCategoryDropdown(false); }}
+                      style={{
+                        padding: '6px 12px', fontSize: 11,
+                        color: '#34D399', cursor: 'pointer',
+                        background: 'transparent',
+                        borderTop: filtered.length > 0 ? '1px solid #2A2C3A' : 'none'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.background = '#1E2030'}
+                      onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      + Create "{targetCategory.trim()}"
+                    </div>
+                  )}
+                </div>
+              ) : null;
+            })()}
             {isMultiCategory && (
               <p style={{ fontSize: 9, color: '#F59E0B', marginTop: 4 }}>
                 Entries span {uniqueCategories.length} categories ({uniqueCategories.join(', ')})
               </p>
             )}
+            <p style={{ fontSize: 9, color: '#4B5563', marginTop: 4 }}>
+              Select an existing category or type to create a new one
+            </p>
           </div>
 
           {error && (

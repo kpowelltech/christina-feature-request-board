@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
  * @param {array} existingTopics - List of existing topics for autocomplete
  * @param {boolean} isAiChannel - Whether this is for AI feedback channel
  */
-export default function EditModal({ isOpen, onClose, onSave, request, existingTopics = [], isAiChannel = false }) {
+export default function EditModal({ isOpen, onClose, onSave, request, existingTopics = [], categories = [], isAiChannel = false }) {
   const [formData, setFormData] = useState({
     merchant: '',
     mrr: '',
@@ -23,47 +23,8 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
   });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-
-  // AI Feedback categories (7 predefined categories for AI channel)
-  const aiCategories = [
-    'AI Push Flows',
-    'For You Feed',
-    'AI Content & Video Generation',
-    'AI Autopilot',
-    'AI Billing & Pricing',
-    'Analytics & Reporting',
-    'Other'
-  ];
-
-  // Product categories (original 23 categories for product channel)
-  const productCategories = [
-    'Push Flows',
-    'Analytics',
-    'Media',
-    'API/Dev',
-    'Cart',
-    'Checkout',
-    'PDP',
-    'Search',
-    'Navigation',
-    'Loyalty',
-    'Reviews',
-    'Product',
-    'Wishlist',
-    'Integrations',
-    'Promotions',
-    'Messaging',
-    'Accessibility',
-    'Billing',
-    'Compliance',
-    'Documentation',
-    'Personalization',
-    'Subscriptions',
-    'For You Feed'
-  ].sort();
-
-  // Select categories based on channel
-  const categories = isAiChannel ? aiCategories : productCategories;
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('');
 
   const statuses = ['pending', 'in_progress', 'qa', 'done', 'blocked'];
 
@@ -112,7 +73,7 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
         merchant: formData.merchant,
         mrr: parseInt(formData.mrr) || 0,
         arr: parseInt(formData.arr) || 0,
-        category: formData.category,
+        category: formData.category.trim(),
         topic: formData.topic || null,
         request: formData.request,
         context: formData.context || null,
@@ -225,20 +186,71 @@ export default function EditModal({ isOpen, onClose, onSave, request, existingTo
             </div>
 
             {/* Category */}
-            <div>
+            <div style={{ position: 'relative' }}>
               <label style={labelStyle}>
                 Category <span style={{ color: '#EF4444' }}>*</span>
               </label>
-              <select
+              <input
+                type="text"
                 value={formData.category}
-                onChange={(e) => handleChange('category', e.target.value)}
+                onChange={(e) => { handleChange('category', e.target.value); setCategoryFilter(e.target.value); }}
+                onFocus={() => { setShowCategoryDropdown(true); setCategoryFilter(''); }}
+                onBlur={() => setTimeout(() => setShowCategoryDropdown(false), 200)}
                 style={inputStyle}
-              >
-                <option value="">Select category...</option>
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+                placeholder="Select or type a new category..."
+                maxLength={100}
+              />
+              {showCategoryDropdown && (() => {
+                const filter = categoryFilter.toLowerCase();
+                const filtered = filter
+                  ? categories.filter(c => c.toLowerCase().includes(filter))
+                  : categories;
+                const exactMatch = categories.some(c => c.toLowerCase() === formData.category.trim().toLowerCase());
+                const showCreate = formData.category.trim() && !exactMatch;
+                return (filtered.length > 0 || showCreate) ? (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                    background: '#15161E', border: '1px solid #2A2C3A', borderRadius: 4,
+                    maxHeight: 200, overflowY: 'auto', marginTop: 2
+                  }}>
+                    {filtered.map(cat => (
+                      <div
+                        key={cat}
+                        onMouseDown={() => { handleChange('category', cat); setCategoryFilter(''); setShowCategoryDropdown(false); }}
+                        style={{
+                          padding: '6px 12px', fontSize: 11,
+                          color: cat === formData.category ? '#A78BFA' : '#C4C7D4',
+                          cursor: 'pointer',
+                          background: cat === formData.category ? 'rgba(124,106,247,0.08)' : 'transparent',
+                          borderBottom: '1px solid #1A1B24'
+                        }}
+                        onMouseOver={(e) => { if (cat !== formData.category) e.currentTarget.style.background = '#1E2030'; }}
+                        onMouseOut={(e) => { if (cat !== formData.category) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        {cat}
+                      </div>
+                    ))}
+                    {showCreate && (
+                      <div
+                        onMouseDown={() => { handleChange('category', formData.category.trim()); setCategoryFilter(''); setShowCategoryDropdown(false); }}
+                        style={{
+                          padding: '6px 12px', fontSize: 11,
+                          color: '#34D399', cursor: 'pointer',
+                          background: 'transparent',
+                          borderTop: filtered.length > 0 ? '1px solid #2A2C3A' : 'none'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = '#1E2030'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        + Create "{formData.category.trim()}"
+                      </div>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+              <p style={{ fontSize: 9, color: '#4B5563', marginTop: 4 }}>
+                Select an existing category or type to create a new one
+              </p>
             </div>
 
             {/* Topic (dynamic/freeform subtopic) */}

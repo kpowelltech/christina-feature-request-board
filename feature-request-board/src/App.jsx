@@ -6,6 +6,7 @@ import DeleteModal from "./components/DeleteModal";
 import EditModal from "./components/EditModal";
 import CombineModal from "./components/CombineModal";
 import SuggestCombineModal from "./components/SuggestCombineModal";
+import { DEFAULT_PRODUCT_CATEGORIES, DEFAULT_AI_CATEGORIES, getCategoryColor } from "./categoryConfig";
 
 // ─── Shared config ────────────────────────────────────────────────────────────
 const statusConfig = {
@@ -16,44 +17,7 @@ const statusConfig = {
   blocked:     { label: "Blocked",     color: "#EF4444", bg: "rgba(239,68,68,0.12)" },
 };
 
-const categoryColors = {
-  // Product channel categories (original 23)
-  Loyalty:           "#A78BFA",
-  Reviews:           "#F472B6",
-  Checkout:          "#34D399",
-  Subscriptions:     "#60A5FA",
-  Personalization:   "#FB923C",
-  Cart:              "#FBBF24",
-  Navigation:        "#6EE7B7",
-  Search:            "#93C5FD",
-  PDP:               "#FCA5A5",
-  "Push Flows":      "#C4B5FD",
-  "API/Dev":         "#67E8F9",
-  Analytics:         "#86EFAC",
-  Product:           "#FDA4AF",
-  Wishlist:          "#FDE68A",
-  Integrations:      "#A5F3FC",
-  Promotions:        "#FBB6CE",
-  Messaging:         "#BBF7D0",
-  Media:             "#DDD6FE",
-  Accessibility:     "#BAE6FD",
-  Billing:           "#FEF3C7",
-  Compliance:        "#FCE7F3",
-  Documentation:     "#E5E7EB",
-  "For You Feed":    "#FCD34D",
-  // AI-specific
-  "AI Pushes":       "#7C6AF7",
-  "AI Copy":         "#A78BFA",
-  "AI Personalization": "#FB923C",
-  "AI Analytics":    "#34D399",
-  // AI Feedback channel categories (7 new)
-  "AI Push Flows":              "#C4B5FD",  // Purple
-  "AI Content & Video Generation": "#DDD6FE",  // Lavender
-  "AI Autopilot":               "#7C6AF7",  // Deep Purple
-  "AI Billing & Pricing":       "#FEF3C7",  // Light Yellow
-  "Analytics & Reporting":      "#86EFAC",  // Green
-  "Other":                      "#9CA3AF",  // Gray
-};
+// Category colors now live in categoryConfig.js — use getCategoryColor(name)
 
 function getSlackChannelId(slackChannel) {
   return slackChannel === '#product'
@@ -882,7 +846,7 @@ function RequestsPanel({
               <div style={{ fontSize: 10, color: "#4B5563", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 20 }}>Requests by Category</div>
               {rollups.slice(0, 12).map(r => {
                 const pct = Math.round((r.count / Math.max(...rollups.map(x => x.count))) * 100);
-                const cc = categoryColors[r.cat] || "#9CA3AF";
+                const cc = getCategoryColor(r.cat);
                 return (
                   <div key={r.cat} style={{ marginBottom: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
@@ -902,7 +866,7 @@ function RequestsPanel({
             <div style={{ background: "#13141A", border: "1px solid #1E2030", borderRadius: 8, padding: 24 }}>
               <div style={{ fontSize: 10, color: "#4B5563", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 20 }}>Top Requests by Volume</div>
               {[...grouped].sort((a, b) => b.rows.length - a.rows.length).slice(0, 10).map((g, i) => {
-                const cc = categoryColors[g.category] || "#9CA3AF";
+                const cc = getCategoryColor(g.category);
                 return (
                   <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10, padding: "10px 14px", background: "#0E0F14", borderRadius: 6, border: "1px solid #1A1B24" }}>
                     <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, color: "#1E2030", width: 24, textAlign: "right", flexShrink: 0 }}>
@@ -953,7 +917,7 @@ function RequestsPanel({
                       <td style={{ padding: "10px 12px", color: "#9CA3AF", fontWeight: 500 }}>{v.count}</td>
                       <td style={{ padding: "10px 12px" }}>
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                          {[...v.cats].slice(0, 4).map(c => <span key={c} className="badge" style={{ background: `${categoryColors[c] || "#9CA3AF"}15`, color: categoryColors[c] || "#9CA3AF", fontSize: 9 }}>{c}</span>)}
+                          {[...v.cats].slice(0, 4).map(c => <span key={c} className="badge" style={{ background: `${getCategoryColor(c)}15`, color: getCategoryColor(c), fontSize: 9 }}>{c}</span>)}
                         </div>
                       </td>
                       <td style={{ padding: "10px 12px" }}>
@@ -1064,6 +1028,14 @@ export default function App() {
     setToastMsg({ msg, onUndo });
     toastTimerRef.current = setTimeout(() => setToastMsg(null), onUndo ? 5000 : 3500);
   };
+
+  // Merge default categories with any user-created ones found in loaded data
+  const allCategories = useMemo(() => {
+    const data = activeChannel === 'ai' ? aiData : productData;
+    const defaults = activeChannel === 'ai' ? DEFAULT_AI_CATEGORIES : DEFAULT_PRODUCT_CATEGORIES;
+    const fromDB = data.map(r => r.category).filter(Boolean);
+    return [...new Set([...defaults, ...fromDB])].sort();
+  }, [activeChannel, productData, aiData]);
 
   // Get unique topics for autocomplete
   const existingTopics = useMemo(() => {
@@ -1527,6 +1499,7 @@ export default function App() {
         onSave={handleEditRequest}
         request={selectedRequest}
         existingTopics={existingTopics}
+        categories={allCategories}
         isAiChannel={activeChannel === 'ai'}
       />
 
@@ -1536,6 +1509,7 @@ export default function App() {
         onCombine={handleCombineEntries}
         selectedEntries={selectedEntries}
         existingTopics={existingTopics}
+        categories={allCategories}
         isAiChannel={activeChannel === 'ai'}
       />
 
